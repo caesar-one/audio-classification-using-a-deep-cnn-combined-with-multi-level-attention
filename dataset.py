@@ -5,6 +5,13 @@ from glob import glob
 from tqdm import tqdm
 import pickle
 
+'''
+This module is used to preprocess and load the dataset.
+Usage: 
+from dataset import load
+X_train, X_test, y_train, y_test = load()
+'''
+
 dataset_path = "UrbanSound8K/audio"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 samples_number = 88200
