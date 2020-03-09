@@ -48,8 +48,6 @@ def load(save = True, load_saved = True):
                 else:
                     X_test.append(spectrogram)
                     y_test.append(name2class[sample_filename])
-                break
-            break
         X_train = np.array(X_train)
         y_train = np.array(y_train)
         X_test = np.array(X_test)
@@ -62,5 +60,5 @@ def load(save = True, load_saved = True):
     return X_train, X_test, y_train, y_test
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load(save = True, load_saved = True)
+    X_train, X_test, y_train, y_test = load(save = True, load_saved = False)
     print(X_train[0].shape)
