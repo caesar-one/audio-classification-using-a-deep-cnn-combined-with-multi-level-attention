@@ -62,5 +62,5 @@ def load(save = True, load_saved = True):
     return X_train, X_test, y_train, y_test
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load(save = False, load_saved = False)
+    X_train, X_test, y_train, y_test = load(save = True, load_saved = True)
     print(X_train[0].shape)
