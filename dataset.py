@@ -15,11 +15,8 @@ X_train, X_test, y_train, y_test = load()
 dataset_path = "UrbanSound8K/audio"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 samples_number = 88200
-load_saved = True
-save = True
-convert_to_log_scale=False
 
-def load():
+def load(convert_to_log_scale = False, save = True, load_saved = True):
     if len(glob("*.pkl")) and load_saved:
         with open("audio_X_train.pkl", "rb") as f: X_train = pickle.load(f)
         with open("audio_y_train.pkl", "rb") as f: y_train = pickle.load(f)
@@ -61,4 +58,4 @@ def load():
     return X_train, X_test, y_train, y_test
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load()
+    X_train, X_test, y_train, y_test = load(convert_to_log_scale = False, save = True, load_saved = True)
