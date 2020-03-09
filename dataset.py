@@ -15,9 +15,12 @@ X_train, X_test, y_train, y_test = load()
 dataset_path = "UrbanSound8K/audio"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 samples_number = 88200
+load_saved = True
+save = True
+convert_to_log_scale=False
 
 def load():
-    if len(glob("*.pkl")):
+    if len(glob("*.pkl")) and load_saved:
         with open("audio_X_train.pkl", "rb") as f: X_train = pickle.load(f)
         with open("audio_y_train.pkl", "rb") as f: y_train = pickle.load(f)
         with open("audio_X_test.pkl", "rb") as f: X_test = pickle.load(f)
@@ -38,6 +41,7 @@ def load():
                 reshaped_song = np.zeros((samples_number,))
                 reshaped_song[:song.shape[0]]=song
                 spectrogram = librosa.feature.melspectrogram(reshaped_song)
+                if convert_to_log_scale: spectrogram = librosa.power_to_db(spectrogram)
                 song_filename = w.split("/")[-1]
                 if setname == "train":
                     X_train.append(spectrogram)
@@ -49,10 +53,11 @@ def load():
         y_train = np.array(y_train)
         X_test = np.array(X_test)
         y_test = np.array(y_test)
-        with open("audio_X_train.pkl","wb") as f: pickle.dump(X_train,f)
-        with open("audio_y_train.pkl","wb") as f: pickle.dump(y_train,f)
-        with open("audio_X_test.pkl","wb") as f: pickle.dump(X_test,f)
-        with open("audio_y_test.pkl","wb") as f: pickle.dump(y_test,f)
+        if save:
+            with open("audio_X_train.pkl","wb") as f: pickle.dump(X_train,f)
+            with open("audio_y_train.pkl","wb") as f: pickle.dump(y_train,f)
+            with open("audio_X_test.pkl","wb") as f: pickle.dump(X_test,f)
+            with open("audio_y_test.pkl","wb") as f: pickle.dump(y_test,f)
     return X_train, X_test, y_train, y_test
 
 if __name__ == "__main__":
