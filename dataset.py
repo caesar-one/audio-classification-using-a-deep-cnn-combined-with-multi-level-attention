@@ -5,6 +5,8 @@ from glob import glob
 from tqdm import tqdm
 import pickle
 import matplotlib.pyplot as plt
+import torch
+from torchvision import transforms
 
 '''
 This module is used to preprocess and load the dataset.
@@ -16,6 +18,7 @@ X_train, X_test, y_train, y_test = load()
 dataset_path = "UrbanSound8K/audio"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 samples_number = 88200
+
 
 def load(save = True, load_saved = True):
     if len(glob("*.pkl")) and load_saved:
@@ -59,6 +62,26 @@ def load(save = True, load_saved = True):
             with open("audio_y_test.pkl","wb") as f: pickle.dump(y_test,f)
     return X_train, X_test, y_train, y_test
 
+
+def preprocess(image):
+    input_image = np.zeros((3, image.shape[0], image.shape[1]))
+    input_image[0], input_image[1], input_image[2] = image, image, image  # TODO: try different approaches
+
+    normalize = transforms.Compose([
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    input_tensor = normalize(torch.tensor(input_image).float())
+    input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
+
+    return input_batch
+
+
+def extract_bottleneck():
+    pass
+
+
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load(save = True, load_saved = False)
-    print(X_train[0].shape)
+    X_train, X_test, y_train, y_test = load(save = False, load_saved = True)
+
+    for e in tqdm(X_train, desc='Preprocess'):
+        preprocess(e)
