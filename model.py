@@ -1,48 +1,56 @@
-import torch
+import numpy as np
 from torch import nn
 import torch.nn.functional as F
 
-# Different channels? can put derivative? see video
+# TODO Different channels? can put derivative? see video
 
-N_BOTTLENECKS = 10  # T
-INPUT_SIZE = 128    # M (size of each bottleneck feature)
-HIDDEN_SIZE = 600   # H, TODO 500
-DROPOUT = 0.4       # TODO 0.2
-N_CLASSES = 10      # K
+T = 10    # number of bottleneck features, TODO it depends on audio clip length? (paper2)
+M = 128   # size of a bottleneck feature
+H = 600   # size of hidden layers, TODO 500
+DR = 0.4  # dropout rate, TODO 0.2
+L = 6     # number of embedded mappings
+K = 10    # number of classes
 
 
+# Implements the block g (green big block in the main paper)
 class EmbeddedMapping(nn.Module):
 
     def __init__(self):
         super(EmbeddedMapping, self).__init__()
-        self.fc1 = nn.Linear(INPUT_SIZE, HIDDEN_SIZE)
-        self.relu1 = nn.ReLU()
-        self.drop1 = nn.Dropout(DROPOUT)
-        self.fc2 = nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE)
-        self.relu2 = nn.ReLU()
-        self.drop2 = nn.Dropout(DROPOUT)
-        self.fc3 = nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE)
-        self.relu3 = nn.ReLU()
-        self.drop3 = nn.Dropout(DROPOUT)  # TODO forse questo non ci deve essere
+        self.fc1, self.fc2, self.fc3 = [], [], []
+        for t in range(T):
+            self.fc1[t] = nn.Linear(M, H)
+            self.fc2[t] = nn.Linear(H, H)
+            self.fc3[t] = nn.Linear(H, H)
 
+    # Input x has size (T, M)
     def forward(self, x):
-        h1 = self.drop1(self.relu1(self.fc1(x)))
-        h2 = self.drop2(self.relu2(self.fc2(h1)))
-        h = self.drop3(self.relu3(self.fc3(h2)))
+        h1, h2, h = np.zeros((T, H)), np.zeros((T, H)), np.zeros((T, H))
+        for t in range(T):
+            h1[t] = F.dropout(F.relu(self.fc1[t](x[t])), DR)
+            h2[t] = F.dropout(F.relu(self.fc2[t](h1[t])), DR)
+            h[t] = F.dropout(F.relu(self.fc3[t](h2[t])), DR)   # TODO forse l'ultimo dropout non ci deve essere
+        # Output h has size (T, H)
         return h
 
 
+# Implements the blocks v, f, and p (orange big block in the main paper)
 class AttentionModule(nn.Module):
 
     def __init__(self):
         super(AttentionModule, self).__init__()
-        self.fc_att = nn.Linear(HIDDEN_SIZE, N_CLASSES)
-        self.softmax = nn.Softmax()
-        self.fc_class = nn.Linear(HIDDEN_SIZE, N_CLASSES)
-        self.sigmoid = nn.Sigmoid()
+        self.fcv, self.fcf = [], []
+        for t in range(T):
+            self.fcv[t] = nn.Linear(H, K)
+            self.fcf[t] = nn.Linear(H, K)
 
+    # Input h has size (T, H)
     def forward(self, h):
-        v = self.softmax(self.fc_att(h))
-        f = self.sigmoid(self.fc_class(h))
-        # TODO La rete deve conoscere la somma da t=1 a T di v(h_t) per fare la normalizzazione (???)
-        return None
+        v, f = np.zeros((T, K)), np.zeros((T, K))
+        for t in range(T):
+            v[t] = F.softmax(self.fcv[t](h[t]))
+            f[t] = F.sigmoid(self.fcv[t](h[t]))
+        p = v / np.sum(v, 0)
+        y = np.sum(p, 0)
+        # Output y has size (K)
+        return y
