@@ -57,7 +57,7 @@ class CnnFlatten(nn.Module):
 
 
 # Implements the block g (green big block in the main paper)
-class EmbeddedMappingCat(nn.Module):
+class EmbeddedMappingCat(nn.Module): # ---------> 🐈
 
     def __init__(self):
         super(EmbeddedMappingCat, self).__init__()
