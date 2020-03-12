@@ -1,16 +1,17 @@
-import torch
 import numpy as np
+import torch
 from torch import nn
 import torch.nn.functional as F
 from torchvision.models import resnet50
+from tqdm import tqdm
 
 # TODO Different channels? can put derivative? see video
 
-T = 10    # number of bottleneck features, TODO it depends on audio clip length? (paper2)
+T = 4    # number of bottleneck features, TODO it depends on audio clip length? (paper2)
 M = 128   # size of a bottleneck feature
 H = 600   # size of hidden layers, TODO 500
 DR = 0.4  # dropout rate, TODO 0.2
-L = 6     # number of embedded mappings
+L = 6     # number of levels
 K = 10    # number of classes
 
 
@@ -60,15 +61,15 @@ class EmbeddedMapping(nn.Module):
 
     def __init__(self):
         super(EmbeddedMapping, self).__init__()
-        self.fc1, self.fc2, self.fc3 = [], [], []
-        for t in range(T):
-            self.fc1[t] = nn.Linear(M, H)
-            self.fc2[t] = nn.Linear(H, H)
-            self.fc3[t] = nn.Linear(H, H)
+        self.fc1 = [nn.Linear(M, H) for _ in range(T)]
+        self.fc2 = [nn.Linear(H, H) for _ in range(T)]
+        self.fc3 = [nn.Linear(H, H) for _ in range(T)]
 
     # Input x has size (T, M)
     def forward(self, x):
-        h1, h2, h = np.zeros((T, H)), np.zeros((T, H)), np.zeros((T, H))
+        h1 = torch.tensor(()).new_zeros((T, H))
+        h2 = torch.tensor(()).new_zeros((T, H))
+        h = torch.tensor(()).new_zeros((T, H))
         for t in range(T):
             h1[t] = F.dropout(F.relu(self.fc1[t](x[t])), DR)
             h2[t] = F.dropout(F.relu(self.fc2[t](h1[t])), DR)
@@ -82,10 +83,8 @@ class AttentionModule(nn.Module):
 
     def __init__(self):
         super(AttentionModule, self).__init__()
-        self.fcv, self.fcf = [], []
-        for t in range(T):
-            self.fcv[t] = nn.Linear(H, K)
-            self.fcf[t] = nn.Linear(H, K)
+        self.fcv = [nn.Linear(H, K) for _ in range(T)]
+        self.fcf = [nn.Linear(H, K) for _ in range(T)]
 
     # Input h has size (T, H)
     def forward(self, h):
@@ -94,6 +93,36 @@ class AttentionModule(nn.Module):
             v[t] = F.softmax(self.fcv[t](h[t]))
             f[t] = F.sigmoid(self.fcv[t](h[t]))
         p = v / np.sum(v, 0)
-        y = np.sum(p, 0)
+        y = np.sum(f * p, 0)
         # Output y has size (K)
-        return y
+        return v, f, p, y
+
+
+# Implements the multi-level attention model
+class MultiLevelAttention(nn.Module):
+
+    def __init__(self, model):
+        super(MultiLevelAttention, self).__init__()
+
+        self.model = model
+
+    def forward(self, h):
+        pass
+
+
+if __name__ == '__main__':
+    np.random.seed(0)
+    Xtrain = torch.from_numpy(np.random.random((3, T, H))).float()
+
+    use_cuda = torch.cuda.is_available()
+    print("CUDA available: " + str(use_cuda))
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    net = AttentionModule()
+    net.to(device)
+    net.train()
+    with torch.no_grad():
+        for epoch in tqdm(range(9)):
+            for Xb in Xtrain:
+                v, f, p, y = net(Xb)
+    print(y)
