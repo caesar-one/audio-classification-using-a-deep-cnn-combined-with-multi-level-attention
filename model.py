@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 # TODO Different channels? can put derivative? see video
 
-T = 4    # number of bottleneck features, TODO it depends on audio clip length? (paper2)
+T = 4     # number of bottleneck features, TODO it depends on audio clip length? (paper2)
 M = 128   # size of a bottleneck feature
 H = 600   # size of hidden layers, TODO 500
 DR = 0.4  # dropout rate, TODO 0.2
@@ -57,10 +57,10 @@ class CnnFlatten(nn.Module):
 
 
 # Implements the block g (green big block in the main paper)
-class EmbeddedMapping(nn.Module):
+class EmbeddedMappingCat(nn.Module):
 
     def __init__(self):
-        super(EmbeddedMapping, self).__init__()
+        super(EmbeddedMappingCat, self).__init__()
         self.fc1 = [nn.Linear(M, H) for _ in range(T)]
         self.fc2 = [nn.Linear(H, H) for _ in range(T)]
         self.fc3 = [nn.Linear(H, H) for _ in range(T)]
@@ -78,24 +78,39 @@ class EmbeddedMapping(nn.Module):
         return h
 
 
+class EmbeddedMapping(nn.Module):
+
+    def __init__(self):
+        super(EmbeddedMapping, self).__init__()
+        self.fc1 = nn.Linear(M, H)
+        self.fc2 = nn.Linear(H, H)
+        self.fc3 = nn.Linear(H, H)
+
+    # Input x has size M
+    def forward(self, x):
+        h1 = F.dropout(F.relu(self.fc1(x)), DR)
+        h2 = F.dropout(F.relu(self.fc2(h1)), DR)
+        h = F.dropout(F.relu(self.fc3(h2)), DR)   # TODO forse l'ultimo dropout non ci deve essere
+        # Output h has size H
+        return h
+
+
 # Implements the blocks v, f, and p (orange big block in the main paper)
 class AttentionModule(nn.Module):
 
     def __init__(self):
         super(AttentionModule, self).__init__()
-        self.fcv = [nn.Linear(H, K) for _ in range(T)]
-        self.fcf = [nn.Linear(H, K) for _ in range(T)]
+        self.fcv = nn.Linear(H, K)
+        self.fcf = nn.Linear(H, K)
 
     # Input h has size (T, H)
     def forward(self, h):
-        v, f = np.zeros((T, K)), np.zeros((T, K))
-        for t in range(T):
-            v[t] = F.softmax(self.fcv[t](h[t]))
-            f[t] = F.sigmoid(self.fcv[t](h[t]))
-        p = v / np.sum(v, 0)
+        v = F.softmax(self.fcv(h))  # attention
+        f = F.sigmoid(self.fcv(h))  # classification
+        p = v / np.sum(v, 0)  # normalized attention
         y = np.sum(f * p, 0)
         # Output y has size (K)
-        return v, f, p, y
+        return y
 
 
 # Implements the multi-level attention model
