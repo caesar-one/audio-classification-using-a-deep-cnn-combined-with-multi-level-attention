@@ -41,7 +41,6 @@ def load(save = True, load_saved = True, slots_num=8, use_sliding=None):
                 sample = sample[:samples_number]
                 reshaped_sample = np.zeros((samples_number,))
                 reshaped_sample[:sample.shape[0]]=sample
-                print(type(reshaped_sample))
                 # Division multiple time pieces
                 slots = np.split(reshaped_sample, slots_num)
                 spectrograms = [librosa.feature.melspectrogram(s, hop_length=49,n_mels=224) for s in slots]
