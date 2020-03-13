@@ -60,20 +60,22 @@ class CnnFlatten(nn.Module):
 # Implements the block g (green big block in the main paper)
 class EmbeddedMapping(nn.Module):
 
-    def __init__(self):
+    def __init__(self, n_fc, is_first):
         super(EmbeddedMapping, self).__init__()
-        self.fc1 = nn.Linear(M, H)
-        self.fc2 = nn.Linear(H, H)
-        self.fc3 = nn.Linear(H, H)
+        self.n_fc = n_fc
+        if is_first:
+            self.fc = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
+        else:
+            self.fc = [nn.Linear(H, H) for _ in range(n_fc)]
 
-    # Input x has shape (batch_size, T, M)
+    # Input x has shape (batch_size, T, M) if is_first=True
+    # otherwise x has shape (batch_size, T, H)
     def forward(self, x):
-        h1 = F.dropout(F.relu(self.fc1(x)), p=DR)
-        h2 = F.dropout(F.relu(self.fc2(h1)), p=DR)
-        h = F.dropout(F.relu(self.fc3(h2)), p=DR)  # TODO forse l'ultimo dropout non ci deve essere
-        # Output h has shape (batch_size, T, H)
-        print(h.shape)
-        return h
+        emb = x
+        for i in range(self.n_fc):
+            emb = F.dropout(F.relu(self.fc[i](emb)), p=DR)  # TODO forse l'ultimo dropout non ci deve essere
+        # Output emb has shape (batch_size, T, H)
+        return emb
 
 
 # Implements the blocks v, f, and p (orange big block in the main paper)
@@ -99,24 +101,35 @@ class MultiLevelAttention(nn.Module):
 
     def __init__(self, model):
         super(MultiLevelAttention, self).__init__()
-
         self.model = model
+        self.embedded_mappings = [EmbeddedMapping(model[0], is_first=True)] + \
+                                 [EmbeddedMapping(n_layers, is_first=False) for n_layers in model[1:]]
+        self.attention_modules = [AttentionModule() for _ in model]
+        self.fc = nn.Linear(len(model) * K, K)
 
-    def forward(self, h):
-        pass
+    def forward(self, x):
+        embs = [self.embedded_mappings[0](x)]
+        for i in range(1, len(self.model)):
+            embs.append(self.embedded_mappings[i](embs[i-1]))
+        ys = [self.attention_modules[i](embs[i]) for i in range(len(self.model))]
+        conc_ys = torch.cat(ys, dim=1)
+        out = torch.sigmoid(self.fc(conc_ys))
+        return out
 
 
 if __name__ == '__main__':
     np.random.seed(0)
-    Xtrain = torch.from_numpy(np.random.random((32, T, H))).float()
+    Xtrain = torch.from_numpy(np.random.random((32, T, M))).float()
 
     use_cuda = torch.cuda.is_available()
     print("CUDA available: " + str(use_cuda))
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    net = AttentionModule()
+    net = MultiLevelAttention([2, 1])
     net.to(device)
     net.train()
     with torch.no_grad():
         for epoch in tqdm(range(9)):
-            y = net(Xtrain)
+            o = net(Xtrain)
+    print(o)
+    print(o.shape)
