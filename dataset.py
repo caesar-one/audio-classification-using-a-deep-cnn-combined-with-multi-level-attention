@@ -81,7 +81,7 @@ def preprocess(image):
     return input_tensor.numpy()
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load(save = False, load_saved = False)
+    X_train, X_test, y_train, y_test = load(save = True, load_saved = False)
 
     #for e in tqdm(X_train, desc='Preprocess'):
         #preprocess(e)
