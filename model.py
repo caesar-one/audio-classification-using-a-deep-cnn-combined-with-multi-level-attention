@@ -8,7 +8,7 @@ from tqdm import tqdm
 # TODO Different channels? can put derivative? see video
 
 T = 4  # number of bottleneck features, TODO it depends on audio clip length? (paper2)
-M = 128  # size of a bottleneck feature
+M = 2048  # size of a bottleneck feature
 H = 600  # size of hidden layers, TODO 500
 DR = 0.4  # dropout rate, TODO 0.2
 L = 6  # number of levels
@@ -99,13 +99,13 @@ class AttentionModule(nn.Module):
 # Implements the multi-level attention model
 class MultiLevelAttention(nn.Module):
 
-    def __init__(self, model):
+    def __init__(self, model_conf):
         super(MultiLevelAttention, self).__init__()
-        self.model = model
-        self.embedded_mappings = [EmbeddedMapping(model[0], is_first=True)] + \
-                                 [EmbeddedMapping(n_layers, is_first=False) for n_layers in model[1:]]
-        self.attention_modules = [AttentionModule() for _ in model]
-        self.fc = nn.Linear(len(model) * K, K)
+        self.model = model_conf
+        self.embedded_mappings = [EmbeddedMapping(model_conf[0], is_first=True)] + \
+                                 [EmbeddedMapping(n_layers, is_first=False) for n_layers in model_conf[1:]]
+        self.attention_modules = [AttentionModule() for _ in model_conf]
+        self.fc = nn.Linear(len(model_conf) * K, K)
 
     def forward(self, x):
         embs = [self.embedded_mappings[0](x)]
@@ -114,6 +114,23 @@ class MultiLevelAttention(nn.Module):
         ys = [self.attention_modules[i](embs[i]) for i in range(len(self.model))]
         conc_ys = torch.cat(ys, dim=1)
         out = torch.sigmoid(self.fc(conc_ys))
+        return out
+
+class Ensemble(nn.Module):
+
+    def __init__(self,model_conf):
+        super(Ensemble,self).__init__()
+        self.cnn = initialize_cnn(num_classes=1,
+                   use_pretrained=True,
+                   just_bottleneck=True,
+                   cnn_trainable=False,
+                   first_cnn_layer_trainable=False,
+                   in_channels=3)
+        self.mla = MultiLevelAttention(model_conf)
+
+    def forward(self, x):
+        features = self.cnn(x)
+        out = self.mla(features)
         return out
 
 
