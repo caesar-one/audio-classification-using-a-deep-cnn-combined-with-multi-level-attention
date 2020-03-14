@@ -37,7 +37,7 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
         name2class = dict(zip(metadata["slice_file_name"],metadata["class"]))
         X_train, y_train, X_test, y_test = [], [], [], []
         for paths,setname in zip([wav_paths_train, wav_paths_test],["train","test"]):
-            for w in tqdm(paths, desc = "Converting samples in spectrograms"):
+            for w in tqdm(paths, desc = f"Converting {setname} samples in spectrograms"):
                 sample, sr = librosa.load(w)
                 sample = sample[:samples_number]
                 reshaped_sample = np.zeros((samples_number,))
@@ -84,7 +84,7 @@ def preprocess(image):
     return input_tensor.numpy()
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load(save = False, load_saved = True)
+    X_train, X_test, y_train, y_test = load(save = True, load_saved = False)
 
     #for e in tqdm(X_train, desc='Preprocess'):
         #preprocess(e)

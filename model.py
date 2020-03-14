@@ -27,7 +27,7 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
                    in_channels=3):  # the the number of input channels is reshaped
 
     m = resnet50(pretrained=use_pretrained)
-    input_size = 224
+    #input_size = 224
 
     if not cnn_trainable:
         set_requires_grad(m, False)
@@ -48,7 +48,7 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
         num_ftrs = m.fc.in_features
         m.fc = nn.Linear(num_ftrs, num_classes)
 
-    return m, input_size
+    return m#, input_size
 
 
 class CnnFlatten(nn.Module):
@@ -121,14 +121,9 @@ class MultiLevelAttention(nn.Module):
 
 class Ensemble(nn.Module):
 
-    def __init__(self,model_conf):
+    def __init__(self,cnn_conf,model_conf):
         super(Ensemble,self).__init__()
-        self.cnn = initialize_cnn(num_classes=1,
-                   use_pretrained=True,
-                   just_bottleneck=True,
-                   cnn_trainable=False,
-                   first_cnn_layer_trainable=False,
-                   in_channels=3)
+        self.cnn = initialize_cnn(**cnn_conf)
         self.mla = MultiLevelAttention(model_conf)
 
     def forward(self, x):
