@@ -17,7 +17,7 @@ num_classes = 2
 batch_size = 8
 
 # Number of epochs to train for
-num_epochs = 15
+num_epochs = 3
 
 # Flag for feature extracting. When False, we finetune the whole model,
 #   when True we only update the reshaped layer params
@@ -99,88 +99,91 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, val_acc_history
 
+if __name__=="__main__":
 
-X_train, X_test, y_train, y_test = dataset.load(save=False, load_saved=True)
-dataloaders_dict = {"train": DataLoader(zip(X_train,y_train), batch_size=batch_size, shuffle=True),
-                    "val": DataLoader(zip(X_test,y_test), batch_size=batch_size, shuffle=False)}
+    X_train, X_test, y_train, y_test = dataset.load(save=False, load_saved=True)
+    dataloaders_dict = {
+        "train": DataLoader(list(zip(X_train,y_train)), batch_size=batch_size, shuffle=True),
+        "val": DataLoader(list(zip(X_test,y_test)), batch_size=batch_size, shuffle=False)
+    }
 
-model_conf = [2, 2]
+    model_conf = [2, 2]
 
-cnn_conf={
-    "num_classes":128,
-    "use_pretrained":True,
-    "just_bottleneck":True,
-    "cnn_trainable":False,
-    "first_cnn_layer_trainable":False,
-    "in_channels":3
-}
+    cnn_conf={
+        "num_classes":128,
+        "use_pretrained":True,
+        "just_bottleneck":True,
+        "cnn_trainable":False,
+        "first_cnn_layer_trainable":False,
+        "in_channels":3
+    }
 
-model_ft = model.Ensemble(cnn_conf,model_conf)
-
-
-# Send the model to GPU
-model_ft = model_ft.to(device)
-
-# Gather the parameters to be optimized/updated in this run. If we are
-#  finetuning we will be updating all parameters. However, if we are
-#  doing feature extract method, we will only update the parameters
-#  that we have just initialized, i.e. the parameters with requires_grad
-#  is True.
-params_to_update = model_ft.parameters()
-print("Params to learn:")
-if feature_extract:
-    params_to_update = []
-    for name,param in model_ft.named_parameters():
-        if param.requires_grad == True:
-            params_to_update.append(param)
-            print("\t",name)
-else:
-    for name,param in model_ft.named_parameters():
-        if param.requires_grad == True:
-            print("\t",name)
-
-# Observe that all parameters are being optimized
-optimizer_ft = optim.Adam(params_to_update, lr=lr)
-
-# Setup the loss fxn
-criterion = nn.CrossEntropyLoss()
-
-# Train and evaluate
-model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
+    model_ft = model.Ensemble(cnn_conf,model_conf)
 
 
-cnn_conf_scratch={
-    "num_classes":128,
-    "use_pretrained":True,
-    "just_bottleneck":True,
-    "cnn_trainable":False,
-    "first_cnn_layer_trainable":False,
-    "in_channels":3
-}
+    # Send the model to GPU
+    model_ft = model_ft.to(device)
 
-# Initialize the non-pretrained version of the model used for this run
-scratch_model = model.Ensemble(cnn_conf,model_conf)
-scratch_model = scratch_model.to(device)
+    # Gather the parameters to be optimized/updated in this run. If we are
+    #  finetuning we will be updating all parameters. However, if we are
+    #  doing feature extract method, we will only update the parameters
+    #  that we have just initialized, i.e. the parameters with requires_grad
+    #  is True.
+    params_to_update = model_ft.parameters()
+    print("Params to learn:")
+    if feature_extract:
+        params_to_update = []
+        for name,param in model_ft.named_parameters():
+            if param.requires_grad == True:
+                params_to_update.append(param)
+                print("\t",name)
+    else:
+        for name,param in model_ft.named_parameters():
+            if param.requires_grad == True:
+                print("\t",name)
 
-scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=lr)
-scratch_criterion = nn.CrossEntropyLoss()
-_,scratch_hist = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer, num_epochs=num_epochs)
+    # Observe that all parameters are being optimized
+    optimizer_ft = optim.Adam(params_to_update, lr=lr)
 
-# Plot the training curves of validation accuracy vs. number
-#  of training epochs for the transfer learning method and
-#  the model trained from scratch
-#ohist = []
-#shist = []
+    # Setup the loss fxn
+    criterion = nn.CrossEntropyLoss()
 
-ohist = [h.cpu().numpy() for h in hist]
-shist = [h.cpu().numpy() for h in scratch_hist]
+    # Train and evaluate
+    model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
 
-plt.title("Validation Accuracy vs. Number of Training Epochs")
-plt.xlabel("Training Epochs")
-plt.ylabel("Validation Accuracy")
-plt.plot(range(1,num_epochs+1),ohist,label="Pretrained")
-plt.plot(range(1,num_epochs+1),shist,label="Scratch")
-plt.ylim((0,1.))
-plt.xticks(np.arange(1, num_epochs+1, 1.0))
-plt.legend()
-plt.show()
+
+    cnn_conf_scratch={
+        "num_classes":128,
+        "use_pretrained":False,
+        "just_bottleneck":True,
+        "cnn_trainable":False,
+        "first_cnn_layer_trainable":False,
+        "in_channels":3
+    }
+
+    # Initialize the non-pretrained version of the model used for this run
+    scratch_model = model.Ensemble(cnn_conf_scratch,model_conf)
+    scratch_model = scratch_model.to(device)
+
+    scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=lr)
+    scratch_criterion = nn.CrossEntropyLoss()
+    _,scratch_hist = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer, num_epochs=num_epochs)
+
+    # Plot the training curves of validation accuracy vs. number
+    #  of training epochs for the transfer learning method and
+    #  the model trained from scratch
+    #ohist = []
+    #shist = []
+
+    ohist = [h.cpu().numpy() for h in hist]
+    shist = [h.cpu().numpy() for h in scratch_hist]
+
+    plt.title("Validation Accuracy vs. Number of Training Epochs")
+    plt.xlabel("Training Epochs")
+    plt.ylabel("Validation Accuracy")
+    plt.plot(range(1,num_epochs+1),ohist,label="Pretrained")
+    plt.plot(range(1,num_epochs+1),shist,label="Scratch")
+    plt.ylim((0,1.))
+    plt.xticks(np.arange(1, num_epochs+1, 1.0))
+    plt.legend()
+    plt.show()
