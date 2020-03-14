@@ -71,12 +71,17 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
 
 
 def preprocess(image):
-    input_image = np.zeros((3, image.shape[0], image.shape[1]))
-    input_image[0], input_image[1], input_image[2] = image, image, image  # TODO: try different approaches
+    input_image = np.zeros((1, image.shape[0], image.shape[1]))
+    input_image[0] = image  # TODO: try different approaches
+
+    #normalize = transforms.Compose([
+    #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    #])
 
     normalize = transforms.Compose([
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485], std=[0.229])
     ])
+
     input_tensor = normalize(torch.tensor(input_image).float())
     #input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
 
