@@ -11,7 +11,6 @@ T = 4  # number of bottleneck features, TODO it depends on audio clip length? (p
 M = 2048  # size of a bottleneck feature
 H = 600  # size of hidden layers, TODO 500
 DR = 0.4  # dropout rate, TODO 0.2
-L = 6  # number of levels
 K = 10  # number of classes
 
 
@@ -108,10 +107,14 @@ class MultiLevelAttention(nn.Module):
         self.fc = nn.Linear(len(model_conf) * K, K)
 
     def forward(self, x):
+        # embs contains the outputs of all the embedding layers
         embs = [self.embedded_mappings[0](x)]
         for i in range(1, len(self.model)):
-            embs.append(self.embedded_mappings[i](embs[i-1]))
-        ys = [self.attention_modules[i](embs[i]) for i in range(len(self.model))]
+            embs.append(self.embedded_mappings[i](embs[i - 1]))
+        # ys contains the outputs of all the attention modules
+        ys = []
+        for i in range(len(self.model)):
+            ys.append(self.attention_modules[i](embs[i]))
         conc_ys = torch.cat(ys, dim=1)
         out = torch.sigmoid(self.fc(conc_ys))
         return out
@@ -136,7 +139,7 @@ class Ensemble(nn.Module):
 
 if __name__ == '__main__':
     np.random.seed(0)
-    Xtrain = torch.from_numpy(np.random.random((32, T, M))).float()
+    Xtrain = torch.rand((32, T, M)).float()
 
     use_cuda = torch.cuda.is_available()
     print("CUDA available: " + str(use_cuda))

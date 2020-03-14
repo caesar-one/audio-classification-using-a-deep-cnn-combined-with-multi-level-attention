@@ -18,9 +18,10 @@ X_train, X_test, y_train, y_test = load()
 dataset_path = "UrbanSound8K/audio"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 samples_number = 88200
+s_size = 224
 
 
-def load(save = True, load_saved = True, slots_num=8, use_sliding=None):
+def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
     if len(glob("*.pkl")) and load_saved:
         with open("audio_X_train.pkl", "rb") as f: X_train = pickle.load(f)
         with open("audio_y_train.pkl", "rb") as f: y_train = pickle.load(f)
@@ -43,10 +44,11 @@ def load(save = True, load_saved = True, slots_num=8, use_sliding=None):
                 reshaped_sample[:sample.shape[0]]=sample
                 # Division multiple time pieces
                 slots = np.split(reshaped_sample, slots_num)
-                spectrograms = [librosa.feature.melspectrogram(s, hop_length=49,n_mels=224) for s in slots]
+                spectrograms = [librosa.feature.melspectrogram(s, hop_length=samples_number // (s_size * slots_num),
+                                                               n_mels=s_size) for s in slots]
                 # spectrogram = librosa.power_to_db(spectrogram)
                 # spectrogram = librosa.amplitude_to_db(np.abs(librosa.stft(reshaped_sample)), ref=np.max)
-                spectrograms = [s[:224,:224] for s in spectrograms]
+                spectrograms = [s[:s_size,:s_size] for s in spectrograms]
                 spectrograms = [preprocess(s) for s in spectrograms] # normalize spectrogram according to pretrained model requirements
                 sample_filename = w.split("/")[-1]
                 if setname == "train":
@@ -60,11 +62,12 @@ def load(save = True, load_saved = True, slots_num=8, use_sliding=None):
         X_test = np.array(X_test)
         y_test = np.array(y_test)
         if save:
-            with open("audio_X_train.pkl","wb") as f: pickle.dump(X_train,f)
-            with open("audio_y_train.pkl","wb") as f: pickle.dump(y_train,f)
-            with open("audio_X_test.pkl","wb") as f: pickle.dump(X_test,f)
-            with open("audio_y_test.pkl","wb") as f: pickle.dump(y_test,f)
+            with open("audio_X_train.pkl", "wb") as f: pickle.dump(X_train, f, protocol=4)
+            with open("audio_y_train.pkl", "wb") as f: pickle.dump(y_train, f, protocol=4)
+            with open("audio_X_test.pkl", "wb") as f: pickle.dump(X_test, f, protocol=4)
+            with open("audio_y_test.pkl", "wb") as f: pickle.dump(y_test, f, protocol=4)
     return X_train, X_test, y_train, y_test
+
 
 
 def preprocess(image):
@@ -81,7 +84,7 @@ def preprocess(image):
     return input_tensor.numpy()
 
 if __name__ == "__main__":
-    X_train, X_test, y_train, y_test = load(save = True, load_saved = False)
+    X_train, X_test, y_train, y_test = load(save = False, load_saved = True)
 
     #for e in tqdm(X_train, desc='Preprocess'):
         #preprocess(e)
