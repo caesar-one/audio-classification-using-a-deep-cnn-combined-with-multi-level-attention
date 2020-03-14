@@ -38,63 +38,39 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
         X_train, y_train, X_test, y_test = [], [], [], []
         for paths,setname in zip([wav_paths_train, wav_paths_test],["train","test"]):
             for w in tqdm(paths, desc = f"Converting {setname} samples in spectrograms"):
-                #sample, sr = librosa.load(w)
-                #sample = sample[:samples_number]
-                #reshaped_sample = np.zeros((samples_number,))
-                #reshaped_sample[:sample.shape[0]]=sample
+                sample, sr = librosa.load(w)
+                sample = sample[:samples_number]
+                reshaped_sample = np.zeros((samples_number,))
+                reshaped_sample[:sample.shape[0]]=sample
                 # Division multiple time pieces
-                #slots = np.split(reshaped_sample, slots_num)
-
-                #spectrograms = [librosa.feature.melspectrogram(s, hop_length=samples_number // (s_size * slots_num),
-
-                #                                               n_mels=s_size) for s in slots]
+                slots = np.split(reshaped_sample, slots_num)
+                spectrograms = [librosa.feature.melspectrogram(s, hop_length=samples_number // (s_size * slots_num),
+                                                               n_mels=s_size) for s in slots]
                 # spectrogram = librosa.power_to_db(spectrogram)
                 # spectrogram = librosa.amplitude_to_db(np.abs(librosa.stft(reshaped_sample)), ref=np.max)
-                #spectrograms = [s[:s_size,:s_size] for s in spectrograms]
+                spectrograms = [s[None, :s_size, :s_size] for s in spectrograms]
                 #spectrograms = [preprocess(s) for s in spectrograms] # normalize spectrogram according to pretrained model requirements
                 sample_filename = w.split("/")[-1]
                 if setname == "train":
-                    #X_train.append(spectrograms)
+                    X_train.append(spectrograms)
                     y_train.append(int(name2class[sample_filename]))
                 else:
-                    #X_test.append(spectrograms)
+                    X_test.append(spectrograms)
                     y_test.append(int(name2class[sample_filename]))
-        #X_train = np.array(X_train)
+        X_train = np.array(X_train)
         y_train = np.array(y_train)
-        #X_test = np.array(X_test)
+        X_test = np.array(X_test)
         y_test = np.array(y_test)
         if save:
-            #with open("audio_X_train.pkl", "wb") as f: pickle.dump(X_train, f, protocol=4)
+            with open("audio_X_train.pkl", "wb") as f: pickle.dump(X_train, f, protocol=4)
             with open("audio_y_train.pkl", "wb") as f: pickle.dump(y_train, f, protocol=4)
-            #with open("audio_X_test.pkl", "wb") as f: pickle.dump(X_test, f, protocol=4)
+            with open("audio_X_test.pkl", "wb") as f: pickle.dump(X_test, f, protocol=4)
             with open("audio_y_test.pkl", "wb") as f: pickle.dump(y_test, f, protocol=4)
     return X_train, X_test, y_train, y_test
 
 
-
-def preprocess(image):
-    input_image = np.zeros((1, image.shape[0], image.shape[1]))
-    input_image[0] = image  # TODO: try different approaches
-
-    #normalize = transforms.Compose([
-    #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    #])
-
-    normalize = transforms.Compose([
-        transforms.Normalize(mean=[0.485], std=[0.229])
-    ])
-
-    input_tensor = normalize(torch.tensor(input_image).float())
-    #input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
-
-    #return input_batch
-    return input_tensor.numpy()
-
 if __name__ == "__main__":
-    import time
-    since=time.time()
     X_train, X_test, y_train, y_test = load(save = True, load_saved = False)
-    to=time.time()
-    print(to-since)
+
     #for e in tqdm(X_train, desc='Preprocess'):
         #preprocess(e)

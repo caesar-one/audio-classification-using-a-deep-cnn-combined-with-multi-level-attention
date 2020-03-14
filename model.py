@@ -4,6 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.models import resnet50
 from tqdm import tqdm
+from torchvision import transforms
 
 # TODO Different channels? can put derivative? see video
 
@@ -119,15 +120,40 @@ class MultiLevelAttention(nn.Module):
         out = torch.sigmoid(self.fc(conc_ys))
         return out
 
+
+class Input(nn.Module):
+
+    def __init__(self, input_conf):
+        super(Input, self).__init__()
+        self.conf = input_conf
+
+    def forward(self, x):
+        if self.conf == "repeat":
+            x_raw = torch.cat([x, x, x], dim=2)
+        elif self.conf == "single":
+            x_raw = torch.cat([x, torch.zeros(x.shape), torch.zeros(x.shape)], dim=2)
+        else:
+            raise Exception("Invalid input type")
+
+        normalize = transforms.Compose([
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
+        x_out = normalize(torch.tensor(x_raw).float())
+        return x_out
+
+
 class Ensemble(nn.Module):
 
-    def __init__(self,cnn_conf,model_conf):
+    def __init__(self,input_conf, cnn_conf, model_conf):
         super(Ensemble,self).__init__()
+        self.input = Input(input_conf)
         self.cnn = initialize_cnn(**cnn_conf)
         self.mla = MultiLevelAttention(model_conf)
 
     def forward(self, x):
-        features = self.cnn(x)
+        x_proc = self.input(x)
+        features = self.cnn(x_proc)
         out = self.mla(features)
         return out
 
