@@ -117,8 +117,9 @@ if __name__=="__main__":
         "first_cnn_layer_trainable":False,
         "in_channels":3
     }
+    input_conf = "single"
 
-    model_ft = model.Ensemble(cnn_conf,model_conf)
+    model_ft = model.Ensemble(input_conf,cnn_conf,model_conf)
 
 
     # Send the model to GPU

@@ -48,8 +48,8 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
                                                                n_mels=s_size) for s in slots]
                 # spectrogram = librosa.power_to_db(spectrogram)
                 # spectrogram = librosa.amplitude_to_db(np.abs(librosa.stft(reshaped_sample)), ref=np.max)
-                spectrograms = [s[:s_size,:s_size] for s in spectrograms]
-                spectrograms = [preprocess(s) for s in spectrograms] # normalize spectrogram according to pretrained model requirements
+                spectrograms = [s[None, :s_size, :s_size] for s in spectrograms]
+                #spectrograms = [preprocess(s) for s in spectrograms] # normalize spectrogram according to pretrained model requirements
                 sample_filename = w.split("/")[-1]
                 if setname == "train":
                     X_train.append(spectrograms)
@@ -68,25 +68,6 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
             with open("audio_y_test.pkl", "wb") as f: pickle.dump(y_test, f, protocol=4)
     return X_train, X_test, y_train, y_test
 
-
-
-def preprocess(image):
-    input_image = np.zeros((1, image.shape[0], image.shape[1]))
-    input_image[0] = image  # TODO: try different approaches
-
-    #normalize = transforms.Compose([
-    #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    #])
-
-    normalize = transforms.Compose([
-        transforms.Normalize(mean=[0.485], std=[0.229])
-    ])
-
-    input_tensor = normalize(torch.tensor(input_image).float())
-    #input_batch = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
-
-    #return input_batch
-    return input_tensor.numpy()
 
 if __name__ == "__main__":
     X_train, X_test, y_train, y_test = load(save = True, load_saved = False)
