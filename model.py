@@ -28,7 +28,7 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
                    in_channels=3):  # the the number of input channels is reshaped
 
     m = resnet50(pretrained=use_pretrained)
-    #input_size = 224
+    # input_size = 224
 
     if not cnn_trainable:
         set_requires_grad(m, False)
@@ -49,7 +49,7 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
         num_ftrs = m.fc.in_features
         m.fc = nn.Linear(num_ftrs, num_classes)
 
-    return m#, input_size
+    return m  # , input_size
 
 
 class CnnFlatten(nn.Module):
@@ -129,24 +129,27 @@ class Input(nn.Module):
 
     def forward(self, x):
         if self.conf == "repeat":
-            x_raw = torch.cat([x, x, x], dim=2)
+            x_out = torch.cat([x, x, x], dim=2)
         elif self.conf == "single":
-            x_raw = torch.cat([x, torch.zeros(x.shape), torch.zeros(x.shape)], dim=2)
+            x_out = torch.cat([x, torch.zeros(x.shape), torch.zeros(x.shape)], dim=2)
         else:
             raise Exception("Invalid input type")
 
-        normalize = transforms.Compose([
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
+        # normalize = transforms.Compose([
+        #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        # ])
 
-        x_out = normalize(torch.tensor(x_raw).float())
+        x_out[:, :, 0, :, :] = (x_out[:, :, 0, :, :] - 0.485) / 0.229
+        x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
+        x_out[:, :, 2, :, :] = (x_out[:, :, 2, :, :] - 0.406) / 0.225
+
         return x_out
 
 
 class Ensemble(nn.Module):
 
-    def __init__(self,input_conf, cnn_conf, model_conf):
-        super(Ensemble,self).__init__()
+    def __init__(self, input_conf, cnn_conf, model_conf):
+        super(Ensemble, self).__init__()
         self.input = Input(input_conf)
         self.cnn = initialize_cnn(**cnn_conf)
         self.mla = MultiLevelAttention(model_conf)
