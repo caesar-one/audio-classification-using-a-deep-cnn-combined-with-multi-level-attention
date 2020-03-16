@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torchvision.models import resnet50
 from tqdm import tqdm
 from torchvision import transforms
+from torchvision.transforms.functional import normalize
 
 # TODO Different channels? can put derivative? see video
 
@@ -73,7 +74,7 @@ class EmbeddedMapping(nn.Module):
     def forward(self, x):
         emb = x
         for i in range(self.n_fc):
-            emb = F.dropout(F.relu(self.fc[i](emb)), p=DR)  # TODO forse l'ultimo dropout non ci deve essere
+            emb = F.dropout(F.relu(self.fc[i](emb)), p=DR)
         # Output emb has shape (batch_size, T, H)
         return emb
 
@@ -138,10 +139,6 @@ class Input(nn.Module):
         # normalize = transforms.Compose([
         #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         # ])
-
-        # TODO handle channels differently?
-        _min, _max = torch.min(x_out), torch.max(x_out)
-        x_out = (x_out - _min) / (_max - _min)
 
         x_out[:, :, 0, :, :] = (x_out[:, :, 0, :, :] - 0.485) / 0.229
         x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224

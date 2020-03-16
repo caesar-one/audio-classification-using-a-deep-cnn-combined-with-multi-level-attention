@@ -4,9 +4,7 @@ import librosa.display
 from glob import glob
 from tqdm import tqdm
 import pickle
-import matplotlib.pyplot as plt
 import torch
-from torchvision import transforms
 
 '''
 This module is used to preprocess and load the dataset.
@@ -20,6 +18,10 @@ metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 samples_number = 88200
 s_size = 224
 
+def normalize(d):
+    _min, _max = np.min(d), np.max(d)
+    result = (d - _min) / (_max - _min)
+    return result
 
 def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
     if len(glob("*.pkl")) and load_saved:
@@ -49,6 +51,7 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
                 spectrograms = [librosa.power_to_db(s) for s in spectrograms]
                 # spectrogram = librosa.amplitude_to_db(np.abs(librosa.stft(reshaped_sample)), ref=np.max)
                 spectrograms = [s[None, :s_size, :s_size] for s in spectrograms]
+                spectrograms = normalize(spectrograms)
                 #spectrograms = [preprocess(s) for s in spectrograms] # normalize spectrogram according to pretrained model requirements
                 sample_filename = w.split("/")[-1]
                 if setname == "train":
