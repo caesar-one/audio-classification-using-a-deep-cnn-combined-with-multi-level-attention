@@ -46,7 +46,7 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
                 slots = np.split(reshaped_sample, slots_num)
                 spectrograms = [librosa.feature.melspectrogram(s, hop_length=samples_number // (s_size * slots_num),
                                                                n_mels=s_size) for s in slots]
-                # spectrogram = librosa.power_to_db(spectrogram)
+                spectrograms = [librosa.power_to_db(s) for s in spectrograms]
                 # spectrogram = librosa.amplitude_to_db(np.abs(librosa.stft(reshaped_sample)), ref=np.max)
                 spectrograms = [s[None, :s_size, :s_size] for s in spectrograms]
                 #spectrograms = [preprocess(s) for s in spectrograms] # normalize spectrogram according to pretrained model requirements

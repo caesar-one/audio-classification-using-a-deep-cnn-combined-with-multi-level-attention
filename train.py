@@ -9,7 +9,6 @@ import torch
 import model
 import matplotlib.pyplot as plt
 
-
 # Number of classes in the dataset
 num_classes = 2
 

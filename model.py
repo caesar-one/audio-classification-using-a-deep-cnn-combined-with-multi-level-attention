@@ -139,11 +139,15 @@ class Input(nn.Module):
         #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         # ])
 
+        # TODO handle channels differently?
+        _min, _max = torch.min(x_out), torch.max(x_out)
+        x_out = (x_out - _min) / (_max - _min)
+
         x_out[:, :, 0, :, :] = (x_out[:, :, 0, :, :] - 0.485) / 0.229
         x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
         x_out[:, :, 2, :, :] = (x_out[:, :, 2, :, :] - 0.406) / 0.225
 
-        return x_out
+        return x_out.reshape((-1, 3, 224, 224))
 
 
 class Ensemble(nn.Module):
@@ -157,23 +161,6 @@ class Ensemble(nn.Module):
     def forward(self, x):
         x_proc = self.input(x)
         features = self.cnn(x_proc)
-        out = self.mla(features)
+        print(features.shape)
+        out = self.mla(features.reshape(-1, 4, M))
         return out
-
-
-if __name__ == '__main__':
-    np.random.seed(0)
-    Xtrain = torch.rand((32, T, M)).float()
-
-    use_cuda = torch.cuda.is_available()
-    print("CUDA available: " + str(use_cuda))
-    device = torch.device("cuda" if use_cuda else "cpu")
-
-    net = MultiLevelAttention([2, 1])
-    net.to(device)
-    net.train()
-    with torch.no_grad():
-        for epoch in tqdm(range(9)):
-            o = net(Xtrain)
-    print(o)
-    print(o.shape)
