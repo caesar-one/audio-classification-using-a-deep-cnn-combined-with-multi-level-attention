@@ -100,10 +100,10 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
 
 if __name__=="__main__":
 
-    X_train, X_test, y_train, y_test = dataset.load(save=False, load_saved=True)
+    X_train, X_val, y_train, y_val = dataset.load(save=False, load_saved=True)
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train,y_train)), batch_size=batch_size, shuffle=True),
-        "val": DataLoader(list(zip(X_test,y_test)), batch_size=batch_size, shuffle=False)
+        "val": DataLoader(list(zip(X_val,y_val)), batch_size=batch_size, shuffle=False)
     }
 
     model_conf = [2, 2]
