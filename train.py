@@ -39,7 +39,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     test_dataloader = dataloaders.pop('test', None)
 
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('Epoch {}/{}'.format(epoch+1, num_epochs))
         print('-' * 10)
 
         # Each epoch has a training and validation phase
@@ -99,13 +99,15 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     # load best model weights
     model.load_state_dict(best_model_wts)
 
-    if test_dataloader is not None:
-        test_acc = test_model(model, test_dataloader, criterion, optimizer)
+    test_acc = test_model(model, test_dataloader, criterion, optimizer)
 
     return model, val_acc_history, test_acc
 
 
 def test_model(model, dataloader, criterion, optimizer):
+
+    if dataloader is None:
+        return None
 
     since = time.time()
 
