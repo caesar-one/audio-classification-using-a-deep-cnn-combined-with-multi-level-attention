@@ -36,6 +36,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
+    test_dataloader = dataloaders.pop('test', None)
+
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -96,14 +98,66 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model, val_acc_history
+
+    if test_dataloader is not None:
+        test_acc = test_model(model, test_dataloader, criterion, optimizer)
+
+    return model, val_acc_history, test_acc
+
+
+def test_model(model, dataloader, criterion, optimizer):
+
+    since = time.time()
+
+    # Final testing phase
+    print('Testing')
+    print('-' * 10)
+
+    model.eval()   # Set model to evaluate mode
+
+    running_loss = 0.0
+    running_corrects = 0
+
+    # Iterate over data.
+    for inputs, labels in dataloader:
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+
+        # zero the parameter gradients
+        optimizer.zero_grad()
+
+        # forward
+        # track history if only in train
+        with torch.set_grad_enabled(False):
+            # Get model outputs and calculate loss
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+
+            _, preds = torch.max(outputs, 1)
+
+        # statistics
+        running_loss += loss.item() * inputs.size(0)
+        running_corrects += torch.sum(preds == labels.data)
+
+    test_loss = running_loss / len(dataloader.dataset)
+    test_acc = running_corrects.double() / len(dataloader.dataset)
+
+    print('{} Loss: {:.4f} Acc: {:.4f}'.format("test", test_loss, test_acc))
+
+    print()
+
+    time_elapsed = time.time() - since
+    print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    return test_acc
 
 if __name__=="__main__":
 
-    X_train, X_val, y_train, y_val = dataset.load(save=False, load_saved=True)
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train,y_train)), batch_size=batch_size, shuffle=True),
-        "val": DataLoader(list(zip(X_val,y_val)), batch_size=batch_size, shuffle=False)
+        "val": DataLoader(list(zip(X_val,y_val)), batch_size=batch_size, shuffle=False),
+        "test": DataLoader(list(zip(X_test, y_test)), batch_size=batch_size, shuffle=False)
     }
 
     model_conf = [2, 2]
@@ -149,7 +203,7 @@ if __name__=="__main__":
     criterion = nn.CrossEntropyLoss()
 
     # Train and evaluate
-    model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
+    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
 
 
     cnn_conf_scratch={
@@ -167,7 +221,7 @@ if __name__=="__main__":
 
     scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=lr)
     scratch_criterion = nn.CrossEntropyLoss()
-    _,scratch_hist = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer, num_epochs=num_epochs)
+    _,scratch_hist,_ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer, num_epochs=num_epochs)
 
     # Plot the training curves of validation accuracy vs. number
     #  of training epochs for the transfer learning method and
@@ -183,6 +237,7 @@ if __name__=="__main__":
     plt.ylabel("Validation Accuracy")
     plt.plot(range(1,num_epochs+1),ohist,label="Pretrained")
     plt.plot(range(1,num_epochs+1),shist,label="Scratch")
+    plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
     plt.ylim((0,1.))
     plt.xticks(np.arange(1, num_epochs+1, 1.0))
     plt.legend()

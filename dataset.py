@@ -19,10 +19,8 @@ save_filename = "audio_data.pkl"
 samples_number = 88200
 s_size = 224
 
-def normalize(d):
-    _min, _max = np.min(d), np.max(d)
-    result = (d - _min) / (_max - _min)
-    return result
+def normalize(d, _min, _max):
+    return(d - _min) / (_max - _min)
 
 def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
     if save_filename in glob("*.pkl") and load_saved:
@@ -51,7 +49,7 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
                 spectrograms = [librosa.power_to_db(s) for s in spectrograms]
                 # spectrogram = librosa.amplitude_to_db(np.abs(librosa.stft(reshaped_sample)), ref=np.max)
                 spectrograms = [s[None, :s_size, :s_size] for s in spectrograms]
-                spectrograms = normalize(spectrograms)
+                #spectrograms = normalize(spectrograms)
                 #spectrograms = [preprocess(s) for s in spectrograms] # normalize spectrogram according to pretrained model requirements
                 sample_filename = w.split("/")[-1]
                 if setname == "train":
@@ -63,12 +61,22 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
                 else:
                     X_test.append(spectrograms)
                     y_test.append(int(name2class[sample_filename]))
+
         X_train = np.array(X_train)
         y_train = np.array(y_train)
         X_val = np.array(X_val)
         y_val = np.array(y_val)
         X_test = np.array(X_test)
         y_test = np.array(y_test)
+
+        X_tot = np.stack([X_train, X_val, X_test])
+
+        #Normalize the dataset in between [0,1]
+        _min = np.min(X_tot)
+        _max = np.max(X_tot)
+        X_train = normalize(X_train, _min, _max)
+        X_val = normalize(X_val, _min, _max)
+        X_test = normalize(X_test, _min, _max)
         if save:
             with open(save_filename, "wb") as f:
                 pickle.dump((X_train, X_val, X_test, y_train, y_val, y_test),f,protocol=4)
