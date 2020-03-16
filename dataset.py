@@ -30,13 +30,11 @@ def load(save = True, load_saved = True, slots_num=4, use_sliding=None):
             (X_train, X_val, X_test, y_train, y_val, y_test) = pickle.load(f)
     else:
         wav_paths = glob(dataset_path + "/**/*.wav", recursive=True)
-        print(len(wav_paths))
         wav_paths_train, wav_paths_val, wav_paths_test = [], [], []
         for p in wav_paths:
             if p.split("/")[-2] in ["fold1","fold2"]: wav_paths_test.append(p)
             elif p.split("/")[-2] in ["fold3","fold4"]: wav_paths_val.append(p)
             else: wav_paths_train.append(p)
-        print(f"train={len(wav_paths_train)}, test={len(wav_paths_test)}, val={len(wav_paths_val)}")
         metadata = pd.read_csv(metadata_path)
         name2class = dict(zip(metadata["slice_file_name"],metadata["classID"]))
         X_train, X_val, X_test, y_train, y_val, y_test = [], [], [], [], [], []
