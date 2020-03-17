@@ -50,10 +50,41 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
 
     return m  # , input_size
 
+class ResNet50_ft(nn.Module):
+    def __init__(self,num_classes=10,  # number of output classes (makes sense if combined with just_bottleneck=False)
+                   use_pretrained=True,  # Uses a pretrained version of resnet50
+                   just_bottleneck=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
+                   cnn_trainable=False,  # if =True CNN part is trainable. Otherwise the gradient will NOT be calculated
+                   first_cnn_layer_trainable=False,  # Sets the first CNN layer trainable, to optimize for the dataset
+                   in_channels=3):  # the the number of input channels is reshaped
+        super(ResNet50_ft, self).__init__()
+        self.resnet_model = resnet50(pretrained=use_pretrained)
+
+        if not cnn_trainable:
+            set_requires_grad(self.resnet_model, False)
+
+        if first_cnn_layer_trainable:
+            if in_channels == 3:
+                set_requires_grad(self.resnet_model.conv1, True)
+            else:
+                self.resnet_model.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2, padding=3,
+                                                    bias=False)
+        if just_bottleneck:
+            modules = list(self.resnet_model.children())[:-1]  # delete the last fc layer.
+            #modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
+            self.resnet_model = nn.Sequential(*modules)
+
+        else:
+            num_ftrs = self.resnet_model.fc.in_features
+            self.resnet_model.fc = nn.Linear(num_ftrs, num_classes)
+
+    def forward(self, x):
+        x = self.resnet_model(x)
+        return torch.flatten(x, 1)
 
 class CnnFlatten(nn.Module):
-    def forward(self, input):
-        return torch.flatten(input, 1)  # TODO check second parameter (it should be correct considering batches)
+    def forward(self, x):
+        return torch.flatten(x, 1)  # TODO check second parameter (it should be correct considering batches)
 
 
 # Implements the block g (green big block in the main paper)
@@ -150,7 +181,7 @@ class Ensemble(nn.Module):
     def __init__(self, input_conf, cnn_conf, model_conf):
         super(Ensemble, self).__init__()
         self.input = Input(input_conf)
-        self.cnn = initialize_cnn(**cnn_conf)
+        self.cnn = ResNet50_ft(**cnn_conf)
         self.mla = MultiLevelAttention(model_conf)
 
     def forward(self, x):
