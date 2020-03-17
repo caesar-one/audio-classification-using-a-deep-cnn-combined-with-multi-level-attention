@@ -4,14 +4,14 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.models import resnet50
 
-from dataset import slots_num as T
-from dataset import s_size
+from dataset import slots_num as T # TODO this variable setting must be hardcoded here, and then it must be loaded from here in dataset.py
+from dataset import s_size # TODO this variable setting must be hardcoded here, and then it must be loaded from here in dataset.py
 
 # TODO Different channels? can put derivative? see video
 
 M = 2048  # size of a bottleneck feature
-H = 600  # size of hidden layers, TODO 500
-DR = 0.4  # dropout rate, TODO 0.2
+H = 600  # size of hidden layers
+DR = 0.4  # dropout rate
 K = 10  # number of classes
 
 

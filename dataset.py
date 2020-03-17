@@ -14,7 +14,7 @@ from dataset import load
 X_train, X_val, X_test, y_train, y_val, y_test = load()
 '''
 
-dataset_path = "UrbanSound8K/audio"
+dataset_path = "UrbanSound8K/audio/"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 save_filename = "audio_data.pkl"
 samples_number = 88200
@@ -27,18 +27,18 @@ def normalize(d: np.ndarray, _min: float, _max: float) -> np.ndarray:
 
 
 # TODO Try "scarrozzatura" (parameter use_sliding)
-def load(save: bool = True, load_saved: bool = True):
+def load(save: bool = True, load_saved: bool = True, path: str=""):
 
-    if save_filename in glob("*.pkl") and load_saved:
+    if path + save_filename in glob(path + "*.pkl") and load_saved:
         # Load the dataset
-        with open(save_filename, "rb") as f:
+        with open(path + save_filename, "rb") as f:
             (X_train, X_val, X_test, y_train, y_val, y_test) = pickle.load(f)
     else:
         # DATASET CREATION
-        # We split the data into 3 sets: train (60%), val (20%), test (20%).
+        # We split the data into 3 sets: train (~60%), val (~20%), test (~20%).
 
         # Assign folders to the appropriate set
-        wav_paths = glob(dataset_path + "/**/*.wav", recursive=True)
+        wav_paths = glob(path + dataset_path + "**/*.wav", recursive=True)
         wav_paths_train, wav_paths_val, wav_paths_test = [], [], []
         for path in wav_paths:
             if path.split("/")[-2] in ["fold1", "fold2"]:
@@ -48,7 +48,7 @@ def load(save: bool = True, load_saved: bool = True):
             else:
                 wav_paths_train.append(path)
         # Load the metadata
-        metadata = pd.read_csv(metadata_path)
+        metadata = pd.read_csv(path + metadata_path)
         # Create a mapping from audio clip names to their respective label IDs
         name2class = dict(zip(metadata["slice_file_name"], metadata["classID"]))
 
@@ -102,7 +102,7 @@ def load(save: bool = True, load_saved: bool = True):
         X_test = normalize(X_test, _min, _max)
 
         if save:
-            with open(save_filename, "wb") as f:
+            with open(path + save_filename, "wb") as f:
                 # protocol=4 saves correctly variables of size more than 4 GB
                 pickle.dump((X_train, X_val, X_test, y_train, y_val, y_test), f, protocol=4)
 
