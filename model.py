@@ -3,13 +3,12 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torchvision.models import resnet50
-from tqdm import tqdm
-from torchvision import transforms
-from torchvision.transforms.functional import normalize
+
+from dataset import slots_num as T
+from dataset import s_size
 
 # TODO Different channels? can put derivative? see video
 
-T = 4  # number of bottleneck features, TODO it depends on audio clip length? (paper2)
 M = 2048  # size of a bottleneck feature
 H = 600  # size of hidden layers, TODO 500
 DR = 0.4  # dropout rate, TODO 0.2
@@ -29,7 +28,6 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
                    in_channels=3):  # the the number of input channels is reshaped
 
     m = resnet50(pretrained=use_pretrained)
-    # input_size = 224
 
     if not cnn_trainable:
         set_requires_grad(m, False)
@@ -136,15 +134,15 @@ class Input(nn.Module):
         else:
             raise Exception("Invalid input type")
 
-        # normalize = transforms.Compose([
+        #normalize = transforms.Compose([
         #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        # ])
+        #])
 
         x_out[:, :, 0, :, :] = (x_out[:, :, 0, :, :] - 0.485) / 0.229
         x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
         x_out[:, :, 2, :, :] = (x_out[:, :, 2, :, :] - 0.406) / 0.225
 
-        return x_out.reshape((-1, 3, 224, 224))
+        return x_out.reshape((-1, 3, s_size, s_size))
 
 
 class Ensemble(nn.Module):
@@ -158,6 +156,5 @@ class Ensemble(nn.Module):
     def forward(self, x):
         x_proc = self.input(x)
         features = self.cnn(x_proc)
-        print(features.shape)
-        out = self.mla(features.reshape(-1, 4, M))
+        out = self.mla(features.reshape(-1, T, M))
         return out

@@ -27,8 +27,8 @@ lr = 0.001
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
 
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     since = time.time()
 
     val_acc_history = []
@@ -39,7 +39,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     test_dataloader = dataloaders.pop('test', None)
 
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch+1, num_epochs))
+        print('Epoch {}/{}'.format(epoch + 1, num_epochs))
         print('-' * 10)
 
         # Each epoch has a training and validation phase
@@ -47,7 +47,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             if phase == 'train':
                 model.train()  # Set model to training mode
             else:
-                model.eval()   # Set model to evaluate mode
+                model.eval()  # Set model to evaluate mode
 
             running_loss = 0.0
             running_corrects = 0
@@ -105,7 +105,6 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
 
 
 def test_model(model, dataloader, criterion, optimizer):
-
     if dataloader is None:
         return None
 
@@ -115,7 +114,7 @@ def test_model(model, dataloader, criterion, optimizer):
     print('Testing')
     print('-' * 10)
 
-    model.eval()   # Set model to evaluate mode
+    model.eval()  # Set model to evaluate mode
 
     running_loss = 0.0
     running_corrects = 0
@@ -153,29 +152,31 @@ def test_model(model, dataloader, criterion, optimizer):
 
     return test_acc
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
 
     X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
     dataloaders_dict = {
-        "train": DataLoader(list(zip(X_train,y_train)), batch_size=batch_size, shuffle=True),
-        "val": DataLoader(list(zip(X_val,y_val)), batch_size=batch_size, shuffle=False),
+        "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
+        "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
         "test": DataLoader(list(zip(X_test, y_test)), batch_size=batch_size, shuffle=False)
     }
 
+    input_conf = "repeat"
+
     model_conf = [2, 2]
 
-    cnn_conf={
-        "num_classes":128,
-        "use_pretrained":True,
-        "just_bottleneck":True,
-        "cnn_trainable":False,
-        "first_cnn_layer_trainable":False,
-        "in_channels":3
+    cnn_conf = {
+        "num_classes": 128,
+        "use_pretrained": True,
+        "just_bottleneck": True,
+        "cnn_trainable": False,
+        "first_cnn_layer_trainable": False,
+        "in_channels": 3
     }
     input_conf = "single"
 
-    model_ft = model.Ensemble(input_conf,cnn_conf,model_conf)
-
+    model_ft = model.Ensemble(input_conf, cnn_conf, model_conf)
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
@@ -189,14 +190,14 @@ if __name__=="__main__":
     print("Params to learn:")
     if feature_extract:
         params_to_update = []
-        for name,param in model_ft.named_parameters():
+        for name, param in model_ft.named_parameters():
             if param.requires_grad == True:
                 params_to_update.append(param)
-                print("\t",name)
+                print("\t", name)
     else:
-        for name,param in model_ft.named_parameters():
+        for name, param in model_ft.named_parameters():
             if param.requires_grad == True:
-                print("\t",name)
+                print("\t", name)
 
     # Observe that all parameters are being optimized
     optimizer_ft = optim.Adam(params_to_update, lr=lr)
@@ -207,29 +208,29 @@ if __name__=="__main__":
     # Train and evaluate
     model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
 
-
-    cnn_conf_scratch={
-        "num_classes":128,
-        "use_pretrained":False,
-        "just_bottleneck":True,
-        "cnn_trainable":False,
-        "first_cnn_layer_trainable":False,
-        "in_channels":3
+    cnn_conf_scratch = {
+        "num_classes": 128,
+        "use_pretrained": False,
+        "just_bottleneck": True,
+        "cnn_trainable": False,
+        "first_cnn_layer_trainable": False,
+        "in_channels": 3
     }
 
     # Initialize the non-pretrained version of the model used for this run
-    scratch_model = model.Ensemble(cnn_conf_scratch,model_conf)
+    scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf)
     scratch_model = scratch_model.to(device)
 
     scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=lr)
     scratch_criterion = nn.CrossEntropyLoss()
-    _,scratch_hist,_ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer, num_epochs=num_epochs)
+    _, scratch_hist, _ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer,
+                                     num_epochs=num_epochs)
 
     # Plot the training curves of validation accuracy vs. number
     #  of training epochs for the transfer learning method and
     #  the model trained from scratch
-    #ohist = []
-    #shist = []
+    # ohist = []
+    # shist = []
 
     ohist = [h.cpu().numpy() for h in hist]
     shist = [h.cpu().numpy() for h in scratch_hist]
@@ -237,10 +238,10 @@ if __name__=="__main__":
     plt.title("Validation Accuracy vs. Number of Training Epochs")
     plt.xlabel("Training Epochs")
     plt.ylabel("Validation Accuracy")
-    plt.plot(range(1,num_epochs+1),ohist,label="Pretrained")
-    plt.plot(range(1,num_epochs+1),shist,label="Scratch")
+    plt.plot(range(1, num_epochs + 1), ohist, label="Pretrained")
+    plt.plot(range(1, num_epochs + 1), shist, label="Scratch")
     plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
-    plt.ylim((0,1.))
-    plt.xticks(np.arange(1, num_epochs+1, 1.0))
+    plt.ylim((0, 1.))
+    plt.xticks(np.arange(1, num_epochs + 1, 1.0))
     plt.legend()
     plt.show()
