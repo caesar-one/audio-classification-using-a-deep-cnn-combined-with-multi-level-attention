@@ -5,6 +5,9 @@ from glob import glob
 from tqdm import tqdm
 import pickle
 
+from model import s_size
+from model import T as slots_num
+
 '''
 This module is used to load the dataset.
 
@@ -18,8 +21,6 @@ dataset_path = "UrbanSound8K/audio/"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 save_filename = "audio_data.pkl"
 samples_number = 88200
-s_size = 224
-slots_num = 4
 
 
 def normalize(d: np.ndarray, _min: float, _max: float) -> np.ndarray:
