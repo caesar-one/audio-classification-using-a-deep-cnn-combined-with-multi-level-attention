@@ -168,7 +168,7 @@ def test_model(model, dataloader, criterion, optimizer):
 
 if __name__ == "__main__":
 
-    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load(path=sys.argv[1])
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
         "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
-
+    print("model info, is cuda:",set([p.is_cuda for p in list(model_ft.parameters())]))
     # Gather the parameters to be optimized/updated in this run. If we are
     #  finetuning we will be updating all parameters. However, if we are
     #  doing feature extract method, we will only update the parameters

@@ -103,6 +103,7 @@ class EmbeddedMapping(nn.Module):
     # otherwise x has shape (batch_size, T, H)
     def forward(self, x):
         for i in range(self.n_fc):
+            print("Embedded mapping forward type:",x.type())
             x = F.dropout(F.relu(self.fc[i](x)), p=DR)
         # Output emb has shape (batch_size, T, H)
         return x
@@ -138,6 +139,7 @@ class MultiLevelAttention(nn.Module):
         self.fc = nn.Linear(len(model_conf) * K, K)
 
     def forward(self, x):
+        print("MLA forward type:", x.type())
         # embs contains the outputs of all the embedding layers
         embs = [self.embedded_mappings[0](x)]
         for i in range(1, len(self.model)):
