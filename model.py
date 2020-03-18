@@ -102,11 +102,10 @@ class EmbeddedMapping(nn.Module):
     # Input x has shape (batch_size, T, M) if is_first=True
     # otherwise x has shape (batch_size, T, H)
     def forward(self, x):
-        emb = x
         for i in range(self.n_fc):
-            emb = F.dropout(F.relu(self.fc[i](emb)), p=DR)
+            x = F.dropout(F.relu(self.fc[i](x)), p=DR)
         # Output emb has shape (batch_size, T, H)
-        return emb
+        return x
 
 
 # Implements the blocks v, f, and p (orange big block in the main paper)
