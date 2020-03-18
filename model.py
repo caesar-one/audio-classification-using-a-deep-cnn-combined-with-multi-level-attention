@@ -96,11 +96,14 @@ class EmbeddedMapping(nn.Module):
     def __init__(self, n_fc, is_first):
         super(EmbeddedMapping, self).__init__()
         self.n_fc = n_fc
+        self.norm0 = nn.BatchNorm1d(M)
 
         if is_first:
             self.fc = nn.ModuleList([nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
+
+        self.norms = nn.ModuleList([nn.BatchNorm1d(H) for _ in range(n_fc)])
         '''
         if is_first:
             fc_list = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
@@ -119,11 +122,14 @@ class EmbeddedMapping(nn.Module):
     # Input x has shape (batch_size, T, M) if is_first=True
     # otherwise x has shape (batch_size, T, H)
     def forward(self, x):
+        x = self.norm0(x)
         for i in range(self.n_fc):
-            x = F.dropout(F.relu(self.fc[i](x)), p=DR)
+            x = F.dropout(F.relu(self.norms[i](self.fc[i](x))), p=DR)
         # Output emb has shape (batch_size, T, H)
         return x
-        # return self.emb(x)
+        '''
+        return self.emb(x)
+        '''
 
 
 # Implements the blocks v, f, and p (orange big block in the main paper)
@@ -133,11 +139,13 @@ class AttentionModule(nn.Module):
         super(AttentionModule, self).__init__()
         self.fcv = nn.Linear(H, K)
         self.fcf = nn.Linear(H, K)
+        self.normv = nn.BatchNorm1d(K)
+        self.normf = nn.BatchNorm1d(K)
 
     # Input h has shape (batch_size, T, H)
     def forward(self, h):
-        att = F.softmax(self.fcv(h), dim=2)  # attention, shape (batch_size, T, K)
-        cla = torch.sigmoid(self.fcv(h))  # classification, shape (batch_size, T, K)
+        att = F.softmax(self.normv(self.fcv(h)), dim=2)  # attention, shape (batch_size, T, K)
+        cla = torch.sigmoid(self.normf(self.fcv(h)))  # classification, shape (batch_size, T, K)
         norm_att = att / torch.sum(att, dim=1)[:, None, :]  # normalized attention, shape (batch_size, T, K)
         y = torch.sum(cla * norm_att, dim=1)
         # Output y has size (batch_size, K)
@@ -155,6 +163,7 @@ class MultiLevelAttention(nn.Module):
             [EmbeddedMapping(n_layers, is_first=False) for n_layers in model_conf[1:]])
         self.attention_modules = nn.ModuleList([AttentionModule() for _ in model_conf])
         self.fc = nn.Linear(len(model_conf) * K, K)
+        self.norm = nn.BatchNorm1d(K)
 
     def forward(self, x):
         # embs contains the outputs of all the embedding layers
@@ -166,7 +175,7 @@ class MultiLevelAttention(nn.Module):
         for i in range(len(self.model)):
             ys.append(self.attention_modules[i](embs[i]))
         conc_ys = torch.cat(ys, dim=1)
-        out = torch.sigmoid(self.fc(conc_ys))
+        out = torch.sigmoid(self.norm(self.fc(conc_ys)))
         return out
 
 
