@@ -68,7 +68,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             # Iterate over data.
             for inputs, labels in tqdm(dataloaders[phase]):
                 inputs = inputs.to(device)
-                labels = labels.to(device)
+                labels = labels.to(device).long()
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
-    print("model info, is cuda:",set([p.is_cuda for p in list(model_ft.parameters())]))
+
     # Gather the parameters to be optimized/updated in this run. If we are
     #  finetuning we will be updating all parameters. However, if we are
     #  doing feature extract method, we will only update the parameters
