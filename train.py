@@ -94,7 +94,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
+            print('{} Loss: {:.4f}, Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -135,7 +135,7 @@ def test_model(model, dataloader, criterion, optimizer):
     # Iterate over data.
     for inputs, labels in dataloader:
         inputs = inputs.to(device)
-        labels = labels.to(device)
+        labels = labels.to(device).long()
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -156,7 +156,7 @@ def test_model(model, dataloader, criterion, optimizer):
     test_loss = running_loss / len(dataloader.dataset)
     test_acc = running_corrects.double() / len(dataloader.dataset)
 
-    print('{} Loss: {:.4f} Acc: {:.4f}'.format("test", test_loss, test_acc))
+    print('{} Loss: {:.4f}, Acc: {:.4f}'.format("test", test_loss, test_acc))
 
     print()
 
