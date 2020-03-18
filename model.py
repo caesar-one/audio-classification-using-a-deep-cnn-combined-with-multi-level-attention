@@ -94,19 +94,25 @@ class EmbeddedMapping(nn.Module):
     def __init__(self, n_fc, is_first):
         super(EmbeddedMapping, self).__init__()
         self.n_fc = n_fc
+
         if is_first:
-            self.fc = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
+            fc_list = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
         else:
-            self.fc = [nn.Linear(H, H) for _ in range(n_fc)]
+            fc_list = [nn.Linear(H, H) for _ in range(n_fc)]
+
+        modules = []
+        for i in range(self.n_fc):
+            modules.append(fc_list[i])
+            modules.append(nn.ReLU())
+            modules.append(nn.Dropout(p=DR))
+
+        self.emb = nn.Sequential(*modules)
 
     # Input x has shape (batch_size, T, M) if is_first=True
     # otherwise x has shape (batch_size, T, H)
     def forward(self, x):
-        for i in range(self.n_fc):
-            print("Embedded mapping forward type:",x.type())
-            x = F.dropout(F.relu(self.fc[i](x)), p=DR)
-        # Output emb has shape (batch_size, T, H)
-        return x
+        # Output has shape (batch_size, T, H)
+        return self.emb(x)
 
 
 # Implements the blocks v, f, and p (orange big block in the main paper)
