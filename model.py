@@ -96,14 +96,14 @@ class EmbeddedMapping(nn.Module):
     def __init__(self, n_fc, is_first):
         super(EmbeddedMapping, self).__init__()
         self.n_fc = n_fc
-        self.norm0 = nn.BatchNorm1d(M)
+        self.norm0 = nn.BatchNorm1d(T)
 
         if is_first:
             self.fc = nn.ModuleList([nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
 
-        self.norms = nn.ModuleList([nn.BatchNorm1d(H) for _ in range(n_fc)])
+        self.norms = nn.ModuleList([nn.BatchNorm1d(T) for _ in range(n_fc)])
         '''
         if is_first:
             fc_list = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
@@ -139,8 +139,8 @@ class AttentionModule(nn.Module):
         super(AttentionModule, self).__init__()
         self.fcv = nn.Linear(H, K)
         self.fcf = nn.Linear(H, K)
-        self.normv = nn.BatchNorm1d(K)
-        self.normf = nn.BatchNorm1d(K)
+        self.normv = nn.BatchNorm1d(T)
+        self.normf = nn.BatchNorm1d(T)
 
     # Input h has shape (batch_size, T, H)
     def forward(self, h):
