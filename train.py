@@ -1,3 +1,14 @@
+try:
+    import google.colab
+    IN_COLAB = True
+except:
+    IN_COLAB = False
+
+if IN_COLAB:
+    from tqdm import tqdm_notebook as tqdm
+else:
+    from tqdm import tqdm
+
 import time
 import copy
 from torch.utils.data import DataLoader
@@ -9,7 +20,7 @@ import torch
 import model
 import matplotlib.pyplot as plt
 import sys
-from tqdm import tqdm
+
 
 # Number of classes in the dataset
 num_classes = 2

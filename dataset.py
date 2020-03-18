@@ -1,8 +1,18 @@
+try:
+    import google.colab
+    IN_COLAB = True
+except:
+    IN_COLAB = False
+
+if IN_COLAB:
+    from tqdm import tqdm_notebook as tqdm
+else:
+    from tqdm import tqdm
+
 import numpy as np
 import pandas as pd
 import librosa.display
 from glob import glob
-from tqdm import tqdm
 import pickle
 
 from model import s_size
