@@ -98,9 +98,9 @@ class EmbeddedMapping(nn.Module):
         self.n_fc = n_fc
 
         if is_first:
-            self.fc = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
+            self.fc = nn.ModuleList([nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
         else:
-            self.fc = [nn.Linear(H, H) for _ in range(n_fc)]
+            self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
         '''
         if is_first:
             fc_list = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
