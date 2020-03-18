@@ -25,7 +25,7 @@ import sys
 # Number of classes in the dataset
 num_classes = 2
 
-# Batch size for training (change depending on how much memory you have)
+# Batch size for training
 batch_size = 8
 
 # Number of epochs to train for
@@ -78,12 +78,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 with torch.set_grad_enabled(phase == 'train'):
                     # Get model outputs and calculate loss
                     outputs = model(inputs)
-                    print(outputs.type(), labels.type(), outputs.shape, labels.shape)
-                    print(outputs)
-                    print('#######################' * 10 )
-                    print(labels)
                     loss = criterion(outputs, labels)
-                    print(loss.type())
 
                     _, preds = torch.max(outputs, 1)
 
@@ -97,10 +92,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 running_corrects += torch.sum(preds == labels.data)
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            #print(epoch_loss, running_loss, len(dataloaders[phase].dataset))
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
-
-            #print('{} Loss: {:.4f}, Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:

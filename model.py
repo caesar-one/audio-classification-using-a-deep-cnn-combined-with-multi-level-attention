@@ -6,13 +6,14 @@ from torchvision.models import resnet50
 
 # TODO Different channels? can put derivative? see video
 
+# spectrogram size
 s_size = 224
 
-T = 4
+T = 4     # number of bottleneck features
 M = 2048  # size of a bottleneck feature
-H = 600  # size of hidden layers
+H = 600   # size of hidden layers
 DR = 0.4  # dropout rate
-K = 10  # number of classes
+K = 10    # number of classes
 
 
 def set_requires_grad(model, value):
