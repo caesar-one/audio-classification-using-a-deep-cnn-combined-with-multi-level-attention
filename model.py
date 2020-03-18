@@ -4,7 +4,6 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.models import resnet50
 
-
 # TODO Different channels? can put derivative? see video
 
 s_size = 224
@@ -51,13 +50,14 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
 
     return m  # , input_size
 
+
 class ResNet50_ft(nn.Module):
-    def __init__(self,num_classes=10,  # number of output classes (makes sense if combined with just_bottleneck=False)
-                   use_pretrained=True,  # Uses a pretrained version of resnet50
-                   just_bottleneck=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
-                   cnn_trainable=False,  # if =True CNN part is trainable. Otherwise the gradient will NOT be calculated
-                   first_cnn_layer_trainable=False,  # Sets the first CNN layer trainable, to optimize for the dataset
-                   in_channels=3):  # the the number of input channels is reshaped
+    def __init__(self, num_classes=10,  # number of output classes (makes sense if combined with just_bottleneck=False)
+                 use_pretrained=True,  # Uses a pretrained version of resnet50
+                 just_bottleneck=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
+                 cnn_trainable=False,  # if =True CNN part is trainable. Otherwise the gradient will NOT be calculated
+                 first_cnn_layer_trainable=False,  # Sets the first CNN layer trainable, to optimize for the dataset
+                 in_channels=3):  # the the number of input channels is reshaped
         super(ResNet50_ft, self).__init__()
         self.resnet_model = resnet50(pretrained=use_pretrained)
 
@@ -68,11 +68,12 @@ class ResNet50_ft(nn.Module):
             if in_channels == 3:
                 set_requires_grad(self.resnet_model.conv1, True)
             else:
-                self.resnet_model.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2, padding=3,
+                self.resnet_model.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2,
+                                                    padding=3,
                                                     bias=False)
         if just_bottleneck:
             modules = list(self.resnet_model.children())[:-1]  # delete the last fc layer.
-            #modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
+            # modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
             self.resnet_model = nn.Sequential(*modules)
 
         else:
@@ -82,6 +83,7 @@ class ResNet50_ft(nn.Module):
     def forward(self, x):
         x = self.resnet_model(x)
         return torch.flatten(x, 1)
+
 
 class CnnFlatten(nn.Module):
     def forward(self, x):
@@ -111,7 +113,7 @@ class EmbeddedMapping(nn.Module):
     # Input x has shape (batch_size, T, M) if is_first=True
     # otherwise x has shape (batch_size, T, H)
     def forward(self, x):
-        # Output has shape (batch_size, T, H)
+        # Output emb has shape (batch_size, T, H)
         return self.emb(x)
 
 
@@ -139,9 +141,10 @@ class MultiLevelAttention(nn.Module):
     def __init__(self, model_conf):
         super(MultiLevelAttention, self).__init__()
         self.model = model_conf
-        self.embedded_mappings = [EmbeddedMapping(model_conf[0], is_first=True)] + \
-                                 [EmbeddedMapping(n_layers, is_first=False) for n_layers in model_conf[1:]]
-        self.attention_modules = [AttentionModule() for _ in model_conf]
+        self.embedded_mappings = nn.ModuleList(
+            [EmbeddedMapping(model_conf[0], is_first=True)] +
+            [EmbeddedMapping(n_layers, is_first=False) for n_layers in model_conf[1:]])
+        self.attention_modules = nn.ModuleList([AttentionModule() for _ in model_conf])
         self.fc = nn.Linear(len(model_conf) * K, K)
 
     def forward(self, x):
@@ -170,13 +173,14 @@ class Input(nn.Module):
         if self.conf == "repeat":
             x_out = torch.cat([x, x, x], dim=2)
         elif self.conf == "single":
-            x_out = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)], dim=2)
+            x_out = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)],
+                              dim=2)
         else:
             raise Exception("Invalid input type")
 
-        #normalize = transforms.Compose([
+        # normalize = transforms.Compose([
         #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        #])
+        # ])
 
         x_out[:, :, 0, :, :] = (x_out[:, :, 0, :, :] - 0.485) / 0.229
         x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
