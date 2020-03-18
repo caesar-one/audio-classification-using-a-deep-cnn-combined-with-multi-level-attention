@@ -153,15 +153,16 @@ class MultiLevelAttention(nn.Module):
 
 class Input(nn.Module):
 
-    def __init__(self, input_conf):
+    def __init__(self, input_conf, device):
         super(Input, self).__init__()
         self.conf = input_conf
+        self.device = device
 
     def forward(self, x):
         if self.conf == "repeat":
             x_out = torch.cat([x, x, x], dim=2)
         elif self.conf == "single":
-            x_out = torch.cat([x, torch.zeros(x.shape), torch.zeros(x.shape)], dim=2)
+            x_out = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)], dim=2)
         else:
             raise Exception("Invalid input type")
 
@@ -178,9 +179,9 @@ class Input(nn.Module):
 
 class Ensemble(nn.Module):
 
-    def __init__(self, input_conf, cnn_conf, model_conf):
+    def __init__(self, input_conf, cnn_conf, model_conf, device):
         super(Ensemble, self).__init__()
-        self.input = Input(input_conf)
+        self.input = Input(input_conf, device)
         self.cnn = ResNet50_ft(**cnn_conf)
         self.mla = MultiLevelAttention(model_conf)
 

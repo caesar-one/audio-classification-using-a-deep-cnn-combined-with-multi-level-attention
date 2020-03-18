@@ -188,7 +188,7 @@ if __name__ == "__main__":
         "in_channels": 3
     }
 
-    model_ft = model.Ensemble(input_conf, cnn_conf, model_conf)
+    model_ft = model.Ensemble(input_conf, cnn_conf, model_conf, device)
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
