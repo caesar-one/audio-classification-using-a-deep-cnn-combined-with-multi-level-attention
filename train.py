@@ -78,7 +78,12 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 with torch.set_grad_enabled(phase == 'train'):
                     # Get model outputs and calculate loss
                     outputs = model(inputs)
+                    print(outputs.type(), labels.type(), outputs.shape, labels.shape)
+                    print(outputs)
+                    print('#######################' * 10 )
+                    print(labels)
                     loss = criterion(outputs, labels)
+                    print(loss.type())
 
                     _, preds = torch.max(outputs, 1)
 
@@ -90,7 +95,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
-            print(running_loss, loss.item(), inputs.size(0), len(dataloaders[phase].dataset))
+            print(model_ft.mla.embedded_mappings[0].weight.grad)
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             print(epoch_loss, running_loss, len(dataloaders[phase].dataset))
