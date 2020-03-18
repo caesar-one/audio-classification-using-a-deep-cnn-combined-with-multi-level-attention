@@ -23,13 +23,13 @@ import sys
 
 
 # Number of classes in the dataset
-num_classes = 2
+# num_classes = 2
 
 # Batch size for training
-batch_size = 8
+batch_size = 64
 
 # Number of epochs to train for
-num_epochs = 3
+num_epochs = 10
 
 # Flag for feature extracting. When False, we finetune the whole model,
 #   when True we only update the reshaped layer params
@@ -168,13 +168,8 @@ def test_model(model, dataloader, criterion, optimizer):
 
 if __name__ == "__main__":
 
-    #X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
-    X_train=torch.rand((8, 4, 1, 224, 224))
-    X_val = torch.rand((8, 4, 1, 224, 224))
-    X_test=torch.rand((8, 4, 1, 224, 224))
-    y_train=torch.rand(8)
-    y_val=torch.rand(8)
-    y_test=torch.rand(8)
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
+    #X_train=torch.rand((8, 4, 1, 224, 224));X_val = torch.rand((8, 4, 1, 224, 224));X_test=torch.rand((8, 4, 1, 224, 224));y_train=torch.rand(8);y_val=torch.rand(8);y_test=torch.rand(8)
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
         "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
