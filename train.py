@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import model
 import matplotlib.pyplot as plt
+import sys
 
 # Number of classes in the dataset
 num_classes = 2
@@ -155,7 +156,7 @@ def test_model(model, dataloader, criterion, optimizer):
 
 if __name__ == "__main__":
 
-    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load(path=sys.argv[1])
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
         "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
@@ -174,7 +175,6 @@ if __name__ == "__main__":
         "first_cnn_layer_trainable": False,
         "in_channels": 3
     }
-    input_conf = "single"
 
     model_ft = model.Ensemble(input_conf, cnn_conf, model_conf)
 

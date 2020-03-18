@@ -28,7 +28,7 @@ def normalize(d: np.ndarray, _min: float, _max: float) -> np.ndarray:
 
 
 # TODO Try "scarrozzatura" (parameter use_sliding)
-def load(save: bool = True, load_saved: bool = True, path: str=""):
+def load(save: bool = True, load_saved: bool = True, path: str = ""):
 
     if path + save_filename in glob(path + "*.pkl") and load_saved:
         # Load the dataset
@@ -108,7 +108,3 @@ def load(save: bool = True, load_saved: bool = True, path: str=""):
                 pickle.dump((X_train, X_val, X_test, y_train, y_val, y_test), f, protocol=4)
 
     return X_train, X_val, X_test, y_train, y_val, y_test
-
-
-if __name__ == "__main__":
-    X_train, X_val, X_test, y_train, y_val, y_test = load(load_saved=False)
