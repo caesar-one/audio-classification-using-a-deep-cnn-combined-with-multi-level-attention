@@ -90,8 +90,10 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
+            print(running_loss, loss.item(), inputs.size(0), len(dataloaders[phase].dataset))
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
+            print(epoch_loss, running_loss, len(dataloaders[phase].dataset))
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
             print('{} Loss: {:.4f}, Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
@@ -168,7 +170,13 @@ def test_model(model, dataloader, criterion, optimizer):
 
 if __name__ == "__main__":
 
-    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
+    #X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
+    X_train=torch.rand((8, 4, 1, 224, 224))
+    X_val = torch.rand((8, 4, 1, 224, 224))
+    X_test=torch.rand((8, 4, 1, 224, 224))
+    y_train=torch.rand(8)
+    y_val=torch.rand(8)
+    y_test=torch.rand(8)
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
         "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
@@ -230,7 +238,7 @@ if __name__ == "__main__":
     }
 
     # Initialize the non-pretrained version of the model used for this run
-    scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf)
+    scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf, device)
     scratch_model = scratch_model.to(device)
 
     scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=lr)
