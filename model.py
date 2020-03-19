@@ -9,7 +9,7 @@ from torchvision.models import resnet50
 # spectrogram size
 s_size = 224
 
-T = 4     # number of bottleneck features
+T = 10    # number of bottleneck features
 M = 2048  # size of a bottleneck feature
 H = 600   # size of hidden layers
 DR = 0.4  # dropout rate
