@@ -18,8 +18,8 @@ import librosa.display
 from glob import glob
 import pickle
 
-from model import s_resnet_shape
-from model import s_vgg_shape
+from model import s_resnet_shape, s_vggish_shape
+
 from model import T as slots_num
 
 from train import batch_size
@@ -195,7 +195,7 @@ def load(save: bool = True, load_saved: bool = True, path: str = "", save_filena
                 # Compute the spectrogram of the reshaped array.
                 # The granularity on frequency (n_mels) axis depends on the chosen model.
                 # The granularity on time axis (hop_length) depends on the fact we use sliding mode or not.
-                s_shape = s_vgg_shape if cnn_type == "vggish" else s_resnet_shape
+                s_shape = s_vggish_shape if cnn_type == "vggish" else s_resnet_shape
                 s = librosa.feature.melspectrogram(reshaped_array, n_mels=s_shape[0],
                                                    hop_length=samples_num // (s_shape[1] * 4) if use_sliding
                                                    else samples_num // (s_shape[1] * slots_num))
@@ -267,7 +267,7 @@ if __name__ == '__main__':
             load(save=True, load_saved=False,
                  path='/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention'
                       '-mechanism/',
-                 save_filename='audio_data_vgg_%d_s.pkl' % n if u else 'audio_data_vgg_%d.pkl' % n,
+                 save_filename='audio_data_vggish_%d_s.pkl' % n if u else 'audio_data_vggish_%d.pkl' % n,
                  cnn_type="vggish",
                  # debug=True,
                  use_sliding=u)

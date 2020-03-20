@@ -9,7 +9,7 @@ from torchvision.models import resnet50
 # TODO Different channels? can put derivative? see video
 
 s_resnet_shape = (224, 224)
-s_vgg_shape = (96, 64)
+s_vggish_shape = (96, 64)
 
 T = 10  # number of bottleneck features
 M = 2048  # size of a bottleneck feature
@@ -23,9 +23,9 @@ def set_requires_grad(model, value):
         param.requires_grad = value
 
 
-def initialize_cnn(num_classes,  # number of output classes (makes sense only if combined with just_bottleneck=False)
+def initialize_cnn(#num_classes,  # number of output classes (makes sense only if combined with just_bottleneck=False)
                    use_pretrained=True,  # Uses a pretrained version of resnet50
-                   just_bottleneck=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
+                   #just_bottleneck=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
                    cnn_trainable=False,  # if =True CNN part is trainable. Otherwise the gradient will NOT be calculated
                    first_cnn_layer_trainable=False,  # Sets the first CNN layer trainable, to optimize for the dataset
                    in_channels=3):  # the the number of input channels is reshaped
@@ -41,7 +41,7 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
         else:
             m.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2, padding=3,
                                 bias=False)
-
+    '''
     if just_bottleneck:
         modules = list(m.children())[:-1]  # delete the last fc layer.
         modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
@@ -50,6 +50,10 @@ def initialize_cnn(num_classes,  # number of output classes (makes sense only if
     else:
         num_ftrs = m.fc.in_features
         m.fc = nn.Linear(num_ftrs, num_classes)
+    '''
+    modules = list(m.children())[:-1]  # delete the last fc layer.
+    modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
+    m = nn.Sequential(*modules)
 
     return m  # , input_size
 
@@ -74,6 +78,7 @@ class ResNet50_ft(nn.Module):
                 self.resnet_model.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2,
                                                     padding=3,
                                                     bias=False)
+        '''
         if just_bottleneck:
             modules = list(self.resnet_model.children())[:-1]  # delete the last fc layer.
             # modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
@@ -82,7 +87,10 @@ class ResNet50_ft(nn.Module):
         else:
             num_ftrs = self.resnet_model.fc.in_features
             self.resnet_model.fc = nn.Linear(num_ftrs, num_classes)
-
+        '''
+        modules = list(self.resnet_model.children())[:-1]  # delete the last fc layer.
+        # modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
+        self.resnet_model = nn.Sequential(*modules)
     def forward(self, x):
         x = self.resnet_model(x)
         return torch.flatten(x, 1)

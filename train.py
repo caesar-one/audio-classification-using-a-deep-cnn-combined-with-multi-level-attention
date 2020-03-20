@@ -20,9 +20,9 @@ import numpy as np
 import torch
 import model
 import matplotlib.pyplot as plt
-import pickle
+from glob import glob
 
-from model import s_resnet_shape
+from model import s_resnet_shape, s_vggish_shape
 from model import T
 
 # Number of classes in the dataset
@@ -32,29 +32,48 @@ from model import T
 batch_size = 64
 
 # Number of epochs to train for
-# num_epochs = 10
+num_epochs = 10
 
 # Flag for feature extracting. When False, we finetune the whole model,
 #   when True we only update the reshaped layer params
-# feature_extract = True
+feature_extract = True
 
 # Learning rate
-# lr = 0.001
+lr = 0.001
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
+# if patience=None the early stopping mechanism will not be active. Otherwise, if patience=N training will be stopped
+#       if there will not be improvements for N epochs (on the validation set). If save_model_path=None, the model won't
+#       be saved. Otherwise it will be saved in the specified path.
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patience=10, save_model_path=None, resume=False):
     since = time.time()
 
     val_acc_history = []
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+    best_epoch = 0
+    epoch = 0
+
+    if resume:
+        assert save_model_path is not None
+        if save_model_path in glob(save_model_path):
+            _model, _criterion, _optimizer, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(save_model_path)
+            model = _model
+            criterion = _criterion
+            optimizer = _optimizer
+            epoch = _epoch + 1
+            best_epoch = _epoch
+            best_acc = _accuracy
+            val_acc_history = _history
+            best_model_wts = copy.deepcopy(model.state_dict())
+        else:
+            raise Exception("No such model file in the specified path.")
 
     test_dataloader = dataloaders.pop('test', None)
 
-    for epoch in range(num_epochs):
+    for epoch in range(epoch,num_epochs):
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
         print('-' * 10)
 
@@ -103,9 +122,14 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
+                best_epoch = epoch
+                if save_model_path:
+                    _save_checkpoint(model_ft,criterion,optimizer,epoch,epoch_loss,best_acc,val_acc_history,save_model_path)
             if phase == 'val':
                 val_acc_history.append(epoch_acc)
-
+            if patience is not None:
+                if epoch - best_epoch >= patience:
+                    break
         print()
 
     time_elapsed = time.time() - since
@@ -169,118 +193,55 @@ def test_model(model, dataloader, criterion, optimizer):
     return test_acc
 
 
-def main(input_conf, cnn_conf, model_conf, batch_size=64, num_epochs=10, feature_extract=True, lr=0.001, debug=False):
-    # Load dataset
-    if not debug:
-        X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
-    else:
-        X_train = torch.rand((batch_size, T, 1, s_resnet_shape, s_resnet_shape))
-        X_val = torch.rand((batch_size, T, 1, s_resnet_shape, s_resnet_shape))
-        X_test = torch.rand((batch_size, T, 1, s_resnet_shape, s_resnet_shape))
-        y_train = torch.rand(batch_size)
-        y_val = torch.rand(batch_size)
-        y_test = torch.rand(batch_size)
+def _save_checkpoint(model, criterion, optimizer, epoch, loss, accuracy, history, path):
+    torch.save({
+        'epoch': epoch,
+        'model': model,
+        'criterion': criterion,
+        'optimizer': optimizer,
+        'loss': loss,
+        'accuracy': accuracy,
+        'history': history
+    }, path)
 
-    dataloaders_dict = {
-        "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
-        "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
-        "test": DataLoader(list(zip(X_test, y_test)), batch_size=batch_size, shuffle=False)
-    }
+def _resume_from_checkpoint(path):
+    d = torch.load(path)
+    return d["model"], d["optimizer"], d["criterion"], d["epoch"], d["loss"], d["acc"], d["history"]
 
-    cnn_conf = {
-        "num_classes": 128,
-        "use_pretrained": True,
-        "just_bottleneck": True,
-        "cnn_trainable": False,
-        "first_cnn_layer_trainable": False,
-        "in_channels": 3
-    }
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def save_model(model, path):
+    torch.save(model.state_dict(), path)
 
-    model_ft = model.Ensemble(input_conf, cnn_conf, model_conf, device)
-
-    # Send the model to GPU
-    model_ft = model_ft.to(device)
+def load_model(model_args, path):
+    m = model.Ensemble(**model_args)
+    m.load_state_dict(torch.load(path, map_location=device))
+    return m
 
     # Gather the parameters to be optimized/updated in this run. If we are
     #  finetuning we will be updating all parameters. However, if we are
     #  doing feature extract method, we will only update the parameters
     #  that we have just initialized, i.e. the parameters with requires_grad
     #  is True.
-    params_to_update = model_ft.parameters()
+def trainable_params(model, feature_extract):
+    params_to_update = model.parameters()
     print("Params to learn:")
     if feature_extract:
         params_to_update = []
-        for name, param in model_ft.named_parameters():
+        for name, param in model.named_parameters():
             if param.requires_grad == True:
                 params_to_update.append(param)
                 print("\t", name)
     else:
-        for name, param in model_ft.named_parameters():
+        for name, param in model.named_parameters():
             if param.requires_grad == True:
                 print("\t", name)
-
-    # Observe that all parameters are being optimized
-    optimizer_ft = optim.Adam(params_to_update, lr=lr)
-
-    # Setup the loss fxn
-    criterion = nn.CrossEntropyLoss()
-
-    # Train and evaluate
-    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft,
-                                           num_epochs=num_epochs)
-
-    # Save the model
-    with open('', 'wb') as f:
-        pickle.dump(model_ft, f)
-
-    ###############################################################################################################
-
-    cnn_conf_scratch = {
-        "num_classes": 128,
-        "use_pretrained": False,
-        "just_bottleneck": True,
-        "cnn_trainable": False,
-        "first_cnn_layer_trainable": False,
-        "in_channels": 3
-    }
-
-    # Initialize the non-pretrained version of the model used for this run
-    scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf, device)
-    scratch_model = scratch_model.to(device)
-
-    scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=lr)
-    scratch_criterion = nn.CrossEntropyLoss()
-    _, scratch_hist, _ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer,
-                                     num_epochs=num_epochs)
-
-    # Plot the training curves of validation accuracy vs. number
-    #  of training epochs for the transfer learning method and
-    #  the model trained from scratch
-    # ohist = []
-    # shist = []
-
-    ohist = [h.cpu().numpy() for h in hist]
-    shist = [h.cpu().numpy() for h in scratch_hist]
-
-    plt.title("Validation Accuracy vs. Number of Training Epochs")
-    plt.xlabel("Training Epochs")
-    plt.ylabel("Validation Accuracy")
-    plt.plot(range(1, num_epochs + 1), ohist, label="Pretrained")
-    plt.plot(range(1, num_epochs + 1), shist, label="Scratch")
-    plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
-    plt.ylim((0, 1.))
-    plt.xticks(np.arange(1, num_epochs + 1, 1.0))
-    plt.legend()
-    plt.show()
+    return params_to_update
 
 
-'''
 if __name__ == "__main__":
 
     X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
-    #X_train=torch.rand((8, 4, 1, 224, 224));X_val = torch.rand((8, 4, 1, 224, 224));X_test=torch.rand((8, 4, 1, 224, 224));y_train=torch.rand(8);y_val=torch.rand(8);y_test=torch.rand(8)
+
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
         "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
@@ -292,9 +253,7 @@ if __name__ == "__main__":
     model_conf = [2, 2]
 
     cnn_conf = {
-        "num_classes": 128,
         "use_pretrained": True,
-        "just_bottleneck": True,
         "cnn_trainable": False,
         "first_cnn_layer_trainable": False,
         "in_channels": 3
@@ -305,26 +264,8 @@ if __name__ == "__main__":
     # Send the model to GPU
     model_ft = model_ft.to(device)
 
-    # Gather the parameters to be optimized/updated in this run. If we are
-    #  finetuning we will be updating all parameters. However, if we are
-    #  doing feature extract method, we will only update the parameters
-    #  that we have just initialized, i.e. the parameters with requires_grad
-    #  is True.
-    params_to_update = model_ft.parameters()
-    print("Params to learn:")
-    if feature_extract:
-        params_to_update = []
-        for name, param in model_ft.named_parameters():
-            if param.requires_grad == True:
-                params_to_update.append(param)
-                print("\t", name)
-    else:
-        for name, param in model_ft.named_parameters():
-            if param.requires_grad == True:
-                print("\t", name)
-
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.Adam(params_to_update, lr=lr)
+    optimizer_ft = optim.Adam(trainable_params(model_ft, feature_extract=feature_extract), lr=lr)
 
     # Setup the loss fxn
     criterion = nn.CrossEntropyLoss()
@@ -333,9 +274,7 @@ if __name__ == "__main__":
     model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
 
     cnn_conf_scratch = {
-        "num_classes": 128,
         "use_pretrained": False,
-        "just_bottleneck": True,
         "cnn_trainable": False,
         "first_cnn_layer_trainable": False,
         "in_channels": 3
@@ -362,11 +301,10 @@ if __name__ == "__main__":
     plt.title("Validation Accuracy vs. Number of Training Epochs")
     plt.xlabel("Training Epochs")
     plt.ylabel("Validation Accuracy")
-    plt.plot(range(1, num_epochs + 1), ohist, label="Pretrained")
-    plt.plot(range(1, num_epochs + 1), shist, label="Scratch")
+    plt.plot(range(1, len(ohist) + 1), ohist, label="Pretrained")
+    plt.plot(range(1, len(shist) + 1), shist, label="Scratch")
     plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
     plt.ylim((0, 1.))
     plt.xticks(np.arange(1, num_epochs + 1, 1.0))
     plt.legend()
     plt.show()
-'''
