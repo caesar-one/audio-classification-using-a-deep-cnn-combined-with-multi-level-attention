@@ -22,7 +22,7 @@ import model
 import matplotlib.pyplot as plt
 import pickle
 
-from model import s_size
+from model import s_resnet_shape
 from model import T
 
 # Number of classes in the dataset
@@ -174,9 +174,9 @@ def main(input_conf, cnn_conf, model_conf, batch_size=64, num_epochs=10, feature
     if not debug:
         X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
     else:
-        X_train = torch.rand((batch_size, T, 1, s_size, s_size))
-        X_val = torch.rand((batch_size, T, 1, s_size, s_size))
-        X_test = torch.rand((batch_size, T, 1, s_size, s_size))
+        X_train = torch.rand((batch_size, T, 1, s_resnet_shape, s_resnet_shape))
+        X_val = torch.rand((batch_size, T, 1, s_resnet_shape, s_resnet_shape))
+        X_test = torch.rand((batch_size, T, 1, s_resnet_shape, s_resnet_shape))
         y_train = torch.rand(batch_size)
         y_val = torch.rand(batch_size)
         y_test = torch.rand(batch_size)

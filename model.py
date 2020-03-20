@@ -1,3 +1,5 @@
+from typing import List, Dict, Union
+
 import numpy as np
 import torch
 from torch import nn
@@ -6,14 +8,14 @@ from torchvision.models import resnet50
 
 # TODO Different channels? can put derivative? see video
 
-# spectrogram size
-s_size = 224
+s_resnet_shape = (224, 224)
+s_vgg_shape = (96, 64)
 
-T = 10    # number of bottleneck features
+T = 10  # number of bottleneck features
 M = 2048  # size of a bottleneck feature
-H = 600   # size of hidden layers
+H = 600  # size of hidden layers
 DR = 0.4  # dropout rate
-K = 10    # number of classes
+K = 10  # number of classes
 
 
 def set_requires_grad(model, value):
@@ -204,15 +206,19 @@ class Input(nn.Module):
         x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
         x_out[:, :, 2, :, :] = (x_out[:, :, 2, :, :] - 0.406) / 0.225
 
-        return x_out.reshape((-1, 3, s_size, s_size))
+        return x_out.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
 
 
 class Ensemble(nn.Module):
 
-    def __init__(self, input_conf, cnn_conf, model_conf, device):
+    def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int], device,
+                 vgg: bool = True):
         super(Ensemble, self).__init__()
         self.input = Input(input_conf, device)
-        self.cnn = ResNet50_ft(**cnn_conf)
+        if vgg:
+            self.cnn = VGGish()
+        else:
+            self.cnn = ResNet50_ft(**cnn_conf)
         self.mla = MultiLevelAttention(model_conf)
 
     def forward(self, x):
@@ -220,3 +226,51 @@ class Ensemble(nn.Module):
         features = self.cnn(x_proc)
         out = self.mla(features.reshape(-1, T, M))
         return out
+
+
+class VGGish(nn.Module):
+    """
+    PyTorch implementation of the VGGish model.
+    Adapted from: https://github.com/harritaylor/torch-vggish
+    The following modifications were made: (i) correction for the missing ReLU layers, (ii) correction for the
+    improperly formatted data when transitioning from NHWC --> NCHW in the fully-connected layers, and (iii)
+    correction for flattening in the fully-connected layers.
+    """
+
+    def __init__(self):
+        super(VGGish, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 64, 3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2),
+
+            nn.Conv2d(64, 128, 3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2),
+
+            nn.Conv2d(128, 256, 3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, 3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2),
+
+            nn.Conv2d(256, 512, 3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, 3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, stride=2)
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(512 * 24, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, 128),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        x = self.features(x).permute(0, 2, 3, 1).contiguous()
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
