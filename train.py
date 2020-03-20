@@ -124,7 +124,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
                 best_model_wts = copy.deepcopy(model.state_dict())
                 best_epoch = epoch
                 if save_model_path:
-                    _save_checkpoint(model_ft,criterion,optimizer,epoch,epoch_loss,best_acc,val_acc_history,save_model_path)
+                    _save_checkpoint(model,criterion,optimizer,epoch,epoch_loss,best_acc,val_acc_history,save_model_path)
             if phase == 'val':
                 val_acc_history.append(epoch_acc)
             if patience is not None:
