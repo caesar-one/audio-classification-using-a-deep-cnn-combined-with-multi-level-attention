@@ -159,7 +159,7 @@ def test_model(model, dataloader, criterion, optimizer):
     running_loss = 0.0
     running_corrects = 0
 
-    # Iterate over data.
+    # Iterate over data.f
     for inputs, labels in dataloader:
         inputs = inputs.to(device)
         labels = labels.to(device).long()
@@ -206,7 +206,7 @@ def _save_checkpoint(model, criterion, optimizer, epoch, loss, accuracy, history
 
 def _resume_from_checkpoint(path):
     d = torch.load(path)
-    return d["model"], d["optimizer"], d["criterion"], d["epoch"], d["loss"], d["acc"], d["history"]
+    return d["model"], d["optimizer"], d["criterion"], d["epoch"], d["loss"], d["accuracy"], d["history"]
 
 
 def save_model(model, path):
