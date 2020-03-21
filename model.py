@@ -232,6 +232,7 @@ class Ensemble(nn.Module):
             self.cnn = ResNet50_ft(**cnn_conf)
         else:
             raise Exception("CNN type is not valid.")
+        self.cnn_type = cnn_type
         self.mla = MultiLevelAttention(model_conf)
 
     def forward(self, x):
