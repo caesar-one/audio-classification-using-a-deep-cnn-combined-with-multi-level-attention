@@ -199,26 +199,23 @@ class Input(nn.Module):
         self.cnn_type = cnn_type
 
     def forward(self, x):
-        if self.conf == "repeat":
-            x_out = torch.cat([x, x, x], dim=2)
-        elif self.conf == "single":
-            x_out = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)],
-                              dim=2)
-        else:
-            raise Exception("Invalid input type")
+        if self.cnn_type == "resnet":
+            if self.conf == "repeat":
+                x = torch.cat([x, x, x], dim=2)
+            elif self.conf == "single":
+                x = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)],
+                                  dim=2)
+            else:
+                raise Exception("Invalid input type")
 
-        # normalize = transforms.Compose([
-        #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        # ])
-
-        x_out[:, :, 0, :, :] = (x_out[:, :, 0, :, :] - 0.485) / 0.229
-        x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
-        x_out[:, :, 2, :, :] = (x_out[:, :, 2, :, :] - 0.406) / 0.225
+            x[:, :, 0, :, :] = (x[:, :, 0, :, :] - 0.485) / 0.229
+            x[:, :, 1, :, :] = (x[:, :, 1, :, :] - 0.456) / 0.224
+            x[:, :, 2, :, :] = (x[:, :, 2, :, :] - 0.406) / 0.225
 
         if self.cnn_type == "vggish":
-            return x_out.reshape((-1, 3, s_vggish_shape[0], s_vggish_shape[1]))
+            return x.reshape((-1, 3, s_vggish_shape[0], s_vggish_shape[1]))
         elif self.cnn_type == "resnet":
-            return x_out.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
+            return x.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
         else:
             raise Exception("CNN type is not valid.")
 
