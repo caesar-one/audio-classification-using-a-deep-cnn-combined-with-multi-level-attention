@@ -237,7 +237,12 @@ class Ensemble(nn.Module):
     def forward(self, x):
         x_proc = self.input(x)
         features = self.cnn(x_proc)
-        out = self.mla(features.reshape(-1, T, M))
+        if self.cnn_type == "vggish":
+            out = self.mla(features.reshape(-1, T, 128))
+        elif self.cnn_type == "resnet":
+            out = self.mla(features.reshape(-1, T, M))
+        else:
+            raise Exception("CNN type is not valid.")
         return out
 
 
