@@ -213,7 +213,7 @@ class Input(nn.Module):
             x[:, :, 2, :, :] = (x[:, :, 2, :, :] - 0.406) / 0.225
 
         if self.cnn_type == "vggish":
-            return x.reshape((-1, 3, s_vggish_shape[0], s_vggish_shape[1]))
+            return x.reshape((-1, 1, s_vggish_shape[0], s_vggish_shape[1]))
         elif self.cnn_type == "resnet":
             return x.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
         else:
