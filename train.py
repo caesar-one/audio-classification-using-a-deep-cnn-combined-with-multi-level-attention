@@ -1,6 +1,5 @@
 try:
     import google.colab
-
     IN_COLAB = True
 except:
     IN_COLAB = False
@@ -13,14 +12,19 @@ else:
 import time
 import copy
 from torch.utils.data import DataLoader
-import dataset
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import torch
-import model
+
 import matplotlib.pyplot as plt
 from glob import glob
+
+# Batch size for training
+batch_size = 64
+
+import dataset
+import model
 
 from model import s_resnet_shape, s_vggish_shape
 from model import T

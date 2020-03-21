@@ -1,15 +1,16 @@
 from typing import List, Dict, Union
 
-import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torchvision.models import resnet50
 
+from torchvggish.vggish import VGGish
+
 # TODO Different channels? can put derivative? see video
 
 s_resnet_shape = (224, 224)
-s_vggish_shape = (96, 64)
+s_vggish_shape = (64, 96)
 
 T = 10  # number of bottleneck features
 M = 2048  # size of a bottleneck feature
@@ -227,7 +228,7 @@ class Ensemble(nn.Module):
         super(Ensemble, self).__init__()
         self.input = Input(input_conf, cnn_type, device)
         if cnn_type == "vggish":
-            self.cnn = VGGish()
+            self.cnn = VGGish(urls=None, pretrained=True, preprocess=False, postprocess=False, progres)
         elif cnn_type == "resnet":
             self.cnn = ResNet50_ft(**cnn_conf)
         else:
@@ -245,51 +246,3 @@ class Ensemble(nn.Module):
         else:
             raise Exception("CNN type is not valid.")
         return out
-
-
-class VGGish(nn.Module):
-    """
-    PyTorch implementation of the VGGish model.
-    Adapted from: https://github.com/harritaylor/torch-vggish
-    The following modifications were made: (i) correction for the missing ReLU layers, (ii) correction for the
-    improperly formatted data when transitioning from NHWC --> NCHW in the fully-connected layers, and (iii)
-    correction for flattening in the fully-connected layers.
-    """
-
-    def __init__(self):
-        super(VGGish, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 64, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2),
-
-            nn.Conv2d(64, 128, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2),
-
-            nn.Conv2d(128, 256, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2),
-
-            nn.Conv2d(256, 512, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2)
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(512 * 24, 4096),
-            nn.ReLU(inplace=True),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Linear(4096, 128),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x):
-        x = self.features(x).permute(0, 2, 3, 1).contiguous()
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
