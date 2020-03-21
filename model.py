@@ -192,10 +192,11 @@ class MultiLevelAttention(nn.Module):
 
 class Input(nn.Module):
 
-    def __init__(self, input_conf, device):
+    def __init__(self, input_conf, cnn_type, device):
         super(Input, self).__init__()
         self.conf = input_conf
         self.device = device
+        self.cnn_type = cnn_type
 
     def forward(self, x):
         if self.conf == "repeat":
@@ -214,7 +215,12 @@ class Input(nn.Module):
         x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
         x_out[:, :, 2, :, :] = (x_out[:, :, 2, :, :] - 0.406) / 0.225
 
-        return x_out.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
+        if self.cnn_type == "vggish":
+            return x_out.reshape((-1, 3, s_vggish_shape[0], s_vggish_shape[1]))
+        elif self.cnn_type == "resnet":
+            return x_out.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
+        else:
+            raise Exception("CNN type is not valid.")
 
 
 class Ensemble(nn.Module):
