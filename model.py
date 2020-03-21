@@ -110,7 +110,7 @@ class EmbeddedMapping(nn.Module):
         self.norm0 = nn.BatchNorm1d(T)
 
         if is_first:
-            self.fc = nn.ModuleList([nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
+            self.fc = nn.ModuleList([nn.Linear(128, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
 
