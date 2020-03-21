@@ -225,14 +225,16 @@ class Input(nn.Module):
 
 class Ensemble(nn.Module):
 
-    def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int], device,
-                 cnn_type: str = "vggish"):
+    def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int],
+                 device, cnn_type: str = "vggish", ):
         super(Ensemble, self).__init__()
         self.input = Input(input_conf, cnn_type, device)
-        if vgg:
+        if cnn_type == "vggish":
             self.cnn = VGGish()
-        else:
+        elif cnn_type == "resnet":
             self.cnn = ResNet50_ft(**cnn_conf)
+        else:
+            raise Exception("CNN type is not valid.")
         self.mla = MultiLevelAttention(model_conf)
 
     def forward(self, x):
