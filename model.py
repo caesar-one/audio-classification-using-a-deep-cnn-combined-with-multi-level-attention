@@ -226,9 +226,9 @@ class Input(nn.Module):
 class Ensemble(nn.Module):
 
     def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int], device,
-                 vgg: bool = True):
+                 cnn_type: str = "vggish"):
         super(Ensemble, self).__init__()
-        self.input = Input(input_conf, device)
+        self.input = Input(input_conf, cnn_type, device)
         if vgg:
             self.cnn = VGGish()
         else:
