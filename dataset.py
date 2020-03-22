@@ -22,8 +22,8 @@ from model import s_resnet_shape, s_vggish_shape
 
 from model import T as slots_num
 
-from train import batch_size
-
+#from train import batch_size
+#batch_size = 64
 '''
 This module is used to load the dataset.
 
@@ -37,8 +37,8 @@ dataset_path = "UrbanSound8K/audio/"
 metadata_path = "UrbanSound8K/metadata/UrbanSound8K.csv"
 # We know in advance that all audio clips are sampled at 22050 kHz, so we fixed the number of samples per clip at 88200,
 # which correspond to 4 seconds.
-sr = 22050
-samples_num = 88200
+sr = 16_000
+samples_num = sr * 4
 
 
 def normalize(d: np.ndarray, _min: float, _max: float) -> np.ndarray:
@@ -186,7 +186,7 @@ def load(save: bool = True, load_saved: bool = True, path: str = "", save_filena
             for wav_path in tqdm(paths[:batch_size] if debug else paths,
                                  desc=f"Converting {setname} samples in spectrograms"):
                 # Load the audio clip stored at *wav_path* in an audio array
-                audio_array, _ = librosa.load(wav_path)
+                audio_array, _ = librosa.load(wav_path, sr=sr)
                 # Make sure that all audio arrays are of the same length *samples_number*
                 # (cut if larger, zero-fill if smaller)
                 audio_array = audio_array[:samples_num]
@@ -196,9 +196,17 @@ def load(save: bool = True, load_saved: bool = True, path: str = "", save_filena
                 # The granularity on frequency (n_mels) axis depends on the chosen model.
                 # The granularity on time axis (hop_length) depends on the fact we use sliding mode or not.
                 s_shape = s_vggish_shape if cnn_type == "vggish" else s_resnet_shape
-                s = librosa.feature.melspectrogram(reshaped_array, n_mels=s_shape[0],
+                if cnn_type == "resnet":
+                    s = librosa.feature.melspectrogram(reshaped_array, n_mels=s_shape[0],
                                                    hop_length=samples_num // (s_shape[1] * 4) if use_sliding
                                                    else samples_num // (s_shape[1] * slots_num))
+                elif cnn_type == "vggish":
+                    s = librosa.feature.melspectrogram(reshaped_array, sr=sr, n_mels=s_shape[0], hop_length=160, n_fft=512,
+                                                       win_length=400, fmin=125, fmax=7500)
+                else:
+                    raise Exception("Invalid CNN type.")
+                print(sr)
+                print(s.shape)
                 # Convert the spectrogram entries into decibels, with respect to ref=1.0.
                 # If x is an entry of the spectrogram, this computes the scaling x ~= 10 * log10(x / ref)
                 s = librosa.power_to_db(s)
@@ -260,7 +268,8 @@ def load(save: bool = True, load_saved: bool = True, path: str = "", save_filena
 
 
 if __name__ == '__main__':
-
+    load(save=False, load_saved=False, cnn_type="vggish", use_sliding=True, debug=True)
+    '''
     for n in [8, 10]:
         slots_num = n
         for u in [True, False]:
@@ -271,3 +280,4 @@ if __name__ == '__main__':
                  cnn_type="vggish",
                  # debug=True,
                  use_sliding=u)
+'''

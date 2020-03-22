@@ -9,7 +9,7 @@ from torchvision.models import resnet50
 # TODO Different channels? can put derivative? see video
 
 s_resnet_shape = (224, 224)
-s_vggish_shape = (96, 64)
+s_vggish_shape = (64, 96)
 
 T = 10  # number of bottleneck features
 M = 2048  # size of a bottleneck feature
