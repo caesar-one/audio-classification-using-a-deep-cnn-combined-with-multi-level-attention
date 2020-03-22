@@ -227,14 +227,18 @@ class Ensemble(nn.Module):
                  device, cnn_type: str = "vggish", ):
         super(Ensemble, self).__init__()
         self.input = Input(input_conf, cnn_type, device)
+        self.cnn_type = cnn_type
+        self.mla = MultiLevelAttention(model_conf)
+        model_urls = {"vggish": "https://github.com/harritaylor/torchvggish/releases/download/v0.1/vggish-10086976.pth"}
+
         if cnn_type == "vggish":
-            self.cnn = VGGish(urls=None, pretrained=True, preprocess=False, postprocess=False, progress=True)
+            self.cnn = VGGish(urls=model_urls, pretrained=True, preprocess=False, postprocess=False, progress=True)
+            set_requires_grad(self.cnn, False)
         elif cnn_type == "resnet":
             self.cnn = ResNet50_ft(**cnn_conf)
         else:
             raise Exception("CNN type is not valid.")
-        self.cnn_type = cnn_type
-        self.mla = MultiLevelAttention(model_conf)
+
 
     def forward(self, x):
         x_proc = self.input(x)

@@ -166,12 +166,12 @@ class VGGish(VGG):
     def forward(self, x, fs=None):
         if self.preprocess:
             x = self._preprocess(x, fs)
-        print('After preprocess', x.shape)
+        # print('After preprocess', x.shape)
         x = VGG.forward(self, x)
-        print('After forward', x.shape)
+        # print('After forward', x.shape)
         if self.postprocess:
             x = self._postprocess(x)
-        print('After postprocess', x.shape)
+        # print('After postprocess', x.shape)
         return x
 
     def _preprocess(self, x, fs):
