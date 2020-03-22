@@ -24,41 +24,6 @@ def set_requires_grad(model, value):
         param.requires_grad = value
 
 
-def initialize_cnn(#num_classes,  # number of output classes (makes sense only if combined with just_bottleneck=False)
-                   use_pretrained=True,  # Uses a pretrained version of resnet50
-                   #just_bottleneck=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
-                   cnn_trainable=False,  # if =True CNN part is trainable. Otherwise the gradient will NOT be calculated
-                   first_cnn_layer_trainable=False,  # Sets the first CNN layer trainable, to optimize for the dataset
-                   in_channels=3):  # the the number of input channels is reshaped
-
-    m = resnet50(pretrained=use_pretrained)
-
-    if not cnn_trainable:
-        set_requires_grad(m, False)
-
-    if first_cnn_layer_trainable:
-        if in_channels == 3:
-            set_requires_grad(m.conv1, True)
-        else:
-            m.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2, padding=3,
-                                bias=False)
-    '''
-    if just_bottleneck:
-        modules = list(m.children())[:-1]  # delete the last fc layer.
-        modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
-        m = nn.Sequential(*modules)
-
-    else:
-        num_ftrs = m.fc.in_features
-        m.fc = nn.Linear(num_ftrs, num_classes)
-    '''
-    modules = list(m.children())[:-1]  # delete the last fc layer.
-    modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
-    m = nn.Sequential(*modules)
-
-    return m  # , input_size
-
-
 class CNN(nn.Module):
     def __init__(self,
                  cnn_type="vggish", # the pretrained model to use. It can either "resnet" or "vggish" (default)
@@ -90,9 +55,7 @@ class CNN(nn.Module):
             else:
                 num_ftrs = self.resnet_model.fc.in_features
                 self.resnet_model.fc = nn.Linear(num_ftrs, num_classes)
-            #modules = list(self.cnn_model.children())[:-1]  # delete the last fc layer.
-            # modules.append(CnnFlatten())  # TODO Rivedere questa istruzione (e solo questa!)
-            #self.cnn_model = nn.Sequential(*modules)
+
         elif cnn_type == "vggish":
 
             model_urls = {
@@ -102,26 +65,13 @@ class CNN(nn.Module):
 
             if not cnn_trainable:
                 set_requires_grad(self.cnn_model, False)
-            '''
-            if first_cnn_layer_trainable:
-                if in_channels == 3:
-                    set_requires_grad(self.cnn_model.conv1, True)
-                else:
-                    self.cnn_model.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2,
-                                                     padding=3,
-                                                     bias=False)
-            '''
 
             if just_bottleneck:
                 modules = []
                 modules.append(list(self.resnet_model.children())[0])  # just use the first group of layers.
                 modules.append(CnnFlatten(cnn_type))  # TODO Rivedere questa istruzione (e solo questa!)
                 self.resnet_model = nn.Sequential(*modules)
-            '''
-            else:
-                num_ftrs = self.resnet_model.fc.in_features
-                self.resnet_model.fc = nn.Linear(num_ftrs, num_classes)
-            '''
+
         else:
             raise Exception("Invalid CNN model name specified.")
 
@@ -143,14 +93,10 @@ class CnnFlatten(nn.Module):
             x = self.features(x)
             # Transpose the output from features to
             # remain compatible with vggish embeddings
-            # x = torch.transpose(x, 1, 3)
-            x = torch.transpose(x, -3, -1)
-            # x = torch.transpose(x, 1, 2)
-            x = torch.transpose(x, -3, -2)
+            x = torch.transpose(x, 1, 3)
+            x = torch.transpose(x, 1, 2)
             x = x.contiguous()
-            # x = x.view(x.size(0), -1)
-            # If it has a batch size
-            x = x.view(x.size(0), x.size(1), -1) if len(x.shape) == 5 else x.view(x.size(0), -1)
+            x = x.view(x.size(0), -1)
         else:
             raise Exception("Invalid CNN model name specified.")
         return x
@@ -166,24 +112,12 @@ class EmbeddedMapping(nn.Module):
 
         if is_first:
             self.fc = nn.ModuleList([nn.Linear(128, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
+            raise Exception("dis leier is faching vrong") #TODO edit faching vrong leier
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
 
         self.norms = nn.ModuleList([nn.BatchNorm1d(T) for _ in range(n_fc)])
-        '''
-        if is_first:
-            fc_list = [nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)]
-        else:
-            fc_list = [nn.Linear(H, H) for _ in range(n_fc)]
 
-        modules = []
-        for i in range(self.n_fc):
-            modules.append(fc_list[i])
-            modules.append(nn.ReLU())
-            modules.append(nn.Dropout(p=DR))
-
-        self.emb = nn.Sequential(*modules)
-        '''
 
     # Input x has shape (batch_size, T, M) if is_first=True
     # otherwise x has shape (batch_size, T, H)
@@ -193,9 +127,6 @@ class EmbeddedMapping(nn.Module):
             x = F.dropout(F.relu(self.norms[i](self.fc[i](x))), p=DR)
         # Output emb has shape (batch_size, T, H)
         return x
-        '''
-        return self.emb(x)
-        '''
 
 
 # Implements the blocks v, f, and p (orange big block in the main paper)
@@ -284,17 +215,6 @@ class Ensemble(nn.Module):
         self.input = Input(input_conf=input_conf, cnn_type=self.cnn_type, device=device)
         self.mla = MultiLevelAttention(model_conf)
         self.cnn = CNN(**cnn_conf)
-        '''
-        model_urls = {"vggish": "https://github.com/harritaylor/torchvggish/releases/download/v0.1/vggish-10086976.pth"}
-        
-        if cnn_type == "vggish":
-            self.cnn = VGGish(urls=model_urls, pretrained=True, preprocess=False, postprocess=False, progress=True)
-            set_requires_grad(self.cnn, False)
-        elif cnn_type == "resnet":
-            self.cnn = ResNet50_ft(**cnn_conf)
-        else:
-            raise Exception("CNN type is not valid.")
-        '''
 
     def forward(self, x):
         x_proc = self.input(x)

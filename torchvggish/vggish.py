@@ -19,23 +19,15 @@ class VGG(nn.Module):
             nn.ReLU(True))
 
     def forward(self, x):
-        #print("1",x.shape)
         x = self.features(x)
-        #print("2",x.shape)
+
         # Transpose the output from features to
         # remain compatible with vggish embeddings
-        #x = torch.transpose(x, 1, 3)
-        x = torch.transpose(x, -3, -1)
-        #print("3",x.shape)
-        #x = torch.transpose(x, 1, 2)
-        x = torch.transpose(x, -3, -2)
-        #print("4",x.shape)
+        x = torch.transpose(x, 1, 3)
+        x = torch.transpose(x, 1, 2)
         x = x.contiguous()
-        #print("5",x.shape)
-        #x = x.view(x.size(0), -1)
-        # If it has a batch size
-        x = x.view(x.size(0), x.size(1), -1) if len(x.shape) == 5 else x.view(x.size(0), -1)
-        #print("6sh",x.shape)
+        x = x.view(x.size(0), -1)
+
         return self.embeddings(x)
 
 

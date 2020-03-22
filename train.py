@@ -257,7 +257,10 @@ if __name__ == "__main__":
     model_conf = [2, 2]
 
     cnn_conf = {
+        "cnn_type": "vggish",
+        "num_classes": 10,
         "use_pretrained": True,
+        "just_bottleneck":False,
         "cnn_trainable": False,
         "first_cnn_layer_trainable": False,
         "in_channels": 3
@@ -278,7 +281,10 @@ if __name__ == "__main__":
     model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
 
     cnn_conf_scratch = {
+        "cnn_type": "vggish",
+        "num_classes": 10,
         "use_pretrained": False,
+        "just_bottleneck":False,
         "cnn_trainable": False,
         "first_cnn_layer_trainable": False,
         "in_channels": 3
