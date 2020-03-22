@@ -98,14 +98,14 @@ class CnnFlatten(nn.Module):
 # Implements the block g (green big block in the main paper)
 class EmbeddedMapping(nn.Module):
 
-    def __init__(self, n_fc, is_first):
+    def __init__(self, n_fc, is_first, emb_input_size):
         super(EmbeddedMapping, self).__init__()
         self.n_fc = n_fc
         self.norm0 = nn.BatchNorm1d(T)
 
         if is_first:
-            self.fc = nn.ModuleList([nn.Linear(128, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
-            raise Exception("dis leier is faching vrong") #TODO edit faching vrong leier
+            self.fc = nn.ModuleList([nn.Linear(emb_input_size, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
+            #raise Exception("dis leier is faching vrong") #TODO edit faching vrong leier
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
 
@@ -145,12 +145,12 @@ class AttentionModule(nn.Module):
 # Implements the multi-level attention model
 class MultiLevelAttention(nn.Module):
 
-    def __init__(self, model_conf):
+    def __init__(self, model_conf, emb_input_size):
         super(MultiLevelAttention, self).__init__()
         self.model = model_conf
         self.embedded_mappings = nn.ModuleList(
-            [EmbeddedMapping(model_conf[0], is_first=True)] +
-            [EmbeddedMapping(n_layers, is_first=False) for n_layers in model_conf[1:]])
+            [EmbeddedMapping(model_conf[0], is_first=True, emb_input_size=emb_input_size)] +
+            [EmbeddedMapping(n_layers, is_first=False, emb_input_size=emb_input_size) for n_layers in model_conf[1:]])
         self.attention_modules = nn.ModuleList([AttentionModule() for _ in model_conf])
         self.fc = nn.Linear(len(model_conf) * K, K)
         self.norm = nn.BatchNorm1d(K)
@@ -204,22 +204,27 @@ class Ensemble(nn.Module):
     def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int],
                  device):
         super(Ensemble, self).__init__()
-        self.cnn_type, self.just_bottlenecks, self.num_classes = cnn_conf["cnn_type"], cnn_conf["just_bottlenecks"], cnn_conf["num_classes"]
+        self.cnn_type = cnn_conf["cnn_type"]
+        self.just_bottlenecks = cnn_conf["just_bottlenecks"]
+        self.num_classes = cnn_conf["num_classes"]
+
+        if self.cnn_type == "vggish" and self.just_bottlenecks:
+            self.emb_input_size = M_VGGISH_JB
+        elif self.cnn_type == "vggish" and not self.just_bottlenecks:
+            self.emb_input_size = M_VGGISH
+        elif self.cnn_type == "resnet" and self.just_bottlenecks:
+            self.emb_input_size = M_RESNET
+        elif self.cnn_type == "resnet" and not self.just_bottlenecks:
+            self.emb_input_size = self.num_classes
+        else:
+            raise Exception("CNN type is not valid.")
+
         self.input = Input(input_conf=input_conf, cnn_type=self.cnn_type, device=device)
-        self.mla = MultiLevelAttention(model_conf)
+        self.mla = MultiLevelAttention(model_conf, self.emb_input_size)
         self.cnn = CNN(**cnn_conf)
 
     def forward(self, x):
         x_proc = self.input(x)
         features = self.cnn(x_proc)
-        if self.cnn_type == "vggish" and self.just_bottlenecks:
-            out = self.mla(features.reshape(-1, T, 512 * 6 * 4))
-        elif self.cnn_type == "vggish" and not self.just_bottlenecks:
-            out = self.mla(features.reshape(-1, T, 128))
-        elif self.cnn_type == "resnet" and self.just_bottlenecks:
-            out = self.mla(features.reshape(-1, T, M))
-        elif self.cnn_type == "resnet" and not self.just_bottlenecks:
-            out = self.mla(features.reshape(-1, T, self.num_classes))
-        else:
-            raise Exception("CNN type is not valid.")
+        out = self.mla(features.reshape(-1, T, self.emb_input_size))
         return out
