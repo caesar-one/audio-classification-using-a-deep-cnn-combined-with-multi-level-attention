@@ -239,7 +239,6 @@ class Ensemble(nn.Module):
         else:
             raise Exception("CNN type is not valid.")
 
-
     def forward(self, x):
         x_proc = self.input(x)
         features = self.cnn(x_proc)

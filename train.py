@@ -33,7 +33,7 @@ from model import T
 # num_classes = 2
 
 # Batch size for training
-batch_size = 64
+# batch_size = 64
 
 # Number of epochs to train for
 num_epochs = 10
