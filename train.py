@@ -1,6 +1,5 @@
 try:
     import google.colab
-
     IN_COLAB = True
 except:
     IN_COLAB = False
@@ -13,14 +12,19 @@ else:
 import time
 import copy
 from torch.utils.data import DataLoader
-import dataset
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import torch
-import model
+
 import matplotlib.pyplot as plt
 from glob import glob
+
+# Batch size for training
+batch_size = 64
+
+import dataset
+import model
 
 from model import s_resnet_shape, s_vggish_shape
 from model import T
@@ -29,7 +33,7 @@ from model import T
 # num_classes = 2
 
 # Batch size for training
-batch_size = 64
+# batch_size = 64
 
 # Number of epochs to train for
 num_epochs = 10
@@ -124,7 +128,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
                 best_model_wts = copy.deepcopy(model.state_dict())
                 best_epoch = epoch
                 if save_model_path:
-                    _save_checkpoint(model_ft,criterion,optimizer,epoch,epoch_loss,best_acc,val_acc_history,save_model_path)
+                    _save_checkpoint(model,criterion,optimizer,epoch,epoch_loss,best_acc,val_acc_history,save_model_path)
             if phase == 'val':
                 val_acc_history.append(epoch_acc)
             if patience is not None:
@@ -159,7 +163,7 @@ def test_model(model, dataloader, criterion, optimizer):
     running_loss = 0.0
     running_corrects = 0
 
-    # Iterate over data.
+    # Iterate over data.f
     for inputs, labels in dataloader:
         inputs = inputs.to(device)
         labels = labels.to(device).long()
@@ -206,7 +210,7 @@ def _save_checkpoint(model, criterion, optimizer, epoch, loss, accuracy, history
 
 def _resume_from_checkpoint(path):
     d = torch.load(path)
-    return d["model"], d["optimizer"], d["criterion"], d["epoch"], d["loss"], d["acc"], d["history"]
+    return d["model"], d["optimizer"], d["criterion"], d["epoch"], d["loss"], d["accuracy"], d["history"]
 
 
 def save_model(model, path):

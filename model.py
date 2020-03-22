@@ -1,10 +1,11 @@
 from typing import List, Dict, Union
 
-import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torchvision.models import resnet50
+
+from torchvggish.vggish import VGGish
 
 # TODO Different channels? can put derivative? see video
 
@@ -110,7 +111,7 @@ class EmbeddedMapping(nn.Module):
         self.norm0 = nn.BatchNorm1d(T)
 
         if is_first:
-            self.fc = nn.ModuleList([nn.Linear(M, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
+            self.fc = nn.ModuleList([nn.Linear(128, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
 
@@ -192,93 +193,59 @@ class MultiLevelAttention(nn.Module):
 
 class Input(nn.Module):
 
-    def __init__(self, input_conf, device):
+    def __init__(self, input_conf, cnn_type, device):
         super(Input, self).__init__()
         self.conf = input_conf
         self.device = device
+        self.cnn_type = cnn_type
 
     def forward(self, x):
-        if self.conf == "repeat":
-            x_out = torch.cat([x, x, x], dim=2)
-        elif self.conf == "single":
-            x_out = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)],
-                              dim=2)
+        if self.cnn_type == "resnet":
+            if self.conf == "repeat":
+                x = torch.cat([x, x, x], dim=2)
+            elif self.conf == "single":
+                x = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)],
+                                  dim=2)
+            else:
+                raise Exception("Invalid input type")
+
+            x[:, :, 0, :, :] = (x[:, :, 0, :, :] - 0.485) / 0.229
+            x[:, :, 1, :, :] = (x[:, :, 1, :, :] - 0.456) / 0.224
+            x[:, :, 2, :, :] = (x[:, :, 2, :, :] - 0.406) / 0.225
+
+        if self.cnn_type == "vggish":
+            return x.reshape((-1, 1, s_vggish_shape[0], s_vggish_shape[1]))
+        elif self.cnn_type == "resnet":
+            return x.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
         else:
-            raise Exception("Invalid input type")
-
-        # normalize = transforms.Compose([
-        #    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        # ])
-
-        x_out[:, :, 0, :, :] = (x_out[:, :, 0, :, :] - 0.485) / 0.229
-        x_out[:, :, 1, :, :] = (x_out[:, :, 1, :, :] - 0.456) / 0.224
-        x_out[:, :, 2, :, :] = (x_out[:, :, 2, :, :] - 0.406) / 0.225
-
-        return x_out.reshape((-1, 3, s_resnet_shape[0], s_resnet_shape[1]))
+            raise Exception("CNN type is not valid.")
 
 
 class Ensemble(nn.Module):
 
-    def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int], device,
-                 vgg: bool = True):
+    def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int],
+                 device, cnn_type: str = "vggish", ):
         super(Ensemble, self).__init__()
-        self.input = Input(input_conf, device)
-        if vgg:
-            self.cnn = VGGish()
-        else:
-            self.cnn = ResNet50_ft(**cnn_conf)
+        self.input = Input(input_conf, cnn_type, device)
+        self.cnn_type = cnn_type
         self.mla = MultiLevelAttention(model_conf)
+        model_urls = {"vggish": "https://github.com/harritaylor/torchvggish/releases/download/v0.1/vggish-10086976.pth"}
+
+        if cnn_type == "vggish":
+            self.cnn = VGGish(urls=model_urls, pretrained=True, preprocess=False, postprocess=False, progress=True)
+            set_requires_grad(self.cnn, False)
+        elif cnn_type == "resnet":
+            self.cnn = ResNet50_ft(**cnn_conf)
+        else:
+            raise Exception("CNN type is not valid.")
 
     def forward(self, x):
         x_proc = self.input(x)
         features = self.cnn(x_proc)
-        out = self.mla(features.reshape(-1, T, M))
+        if self.cnn_type == "vggish":
+            out = self.mla(features.reshape(-1, T, 128))
+        elif self.cnn_type == "resnet":
+            out = self.mla(features.reshape(-1, T, M))
+        else:
+            raise Exception("CNN type is not valid.")
         return out
-
-
-class VGGish(nn.Module):
-    """
-    PyTorch implementation of the VGGish model.
-    Adapted from: https://github.com/harritaylor/torch-vggish
-    The following modifications were made: (i) correction for the missing ReLU layers, (ii) correction for the
-    improperly formatted data when transitioning from NHWC --> NCHW in the fully-connected layers, and (iii)
-    correction for flattening in the fully-connected layers.
-    """
-
-    def __init__(self):
-        super(VGGish, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 64, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2),
-
-            nn.Conv2d(64, 128, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2),
-
-            nn.Conv2d(128, 256, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2),
-
-            nn.Conv2d(256, 512, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, 3, stride=1, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, stride=2)
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(512 * 24, 4096),
-            nn.ReLU(inplace=True),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Linear(4096, 128),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x):
-        x = self.features(x).permute(0, 2, 3, 1).contiguous()
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
