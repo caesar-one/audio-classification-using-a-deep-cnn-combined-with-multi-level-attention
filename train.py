@@ -20,32 +20,12 @@ import torch
 import matplotlib.pyplot as plt
 from glob import glob
 
-# Batch size for training
-batch_size = 64
-
 import dataset
 import model
-
-from model import s_resnet_shape, s_vggish_shape
-from model import T
-
-# Number of classes in the dataset
-# num_classes = 2
-
-# Batch size for training
-# batch_size = 64
-
-# Number of epochs to train for
-num_epochs = 10
-
-# Flag for feature extracting. When False, we finetune the whole model,
-#   when True we only update the reshaped layer params
-feature_extract = True
-
-# Learning rate
-lr = 0.001
+from params import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 # if patience=None the early stopping mechanism will not be active. Otherwise, if patience=N training will be stopped
 #       if there will not be improvements for N epochs (on the validation set). If save_model_path=None, the model won't
@@ -77,7 +57,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
 
     test_dataloader = dataloaders.pop('test', None)
 
-    for epoch in range(epoch,num_epochs):
+    for epoch in range(epoch, num_epochs):
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
         print('-' * 10)
 
@@ -247,9 +227,9 @@ if __name__ == "__main__":
     X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
 
     dataloaders_dict = {
-        "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
-        "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
-        "test": DataLoader(list(zip(X_test, y_test)), batch_size=batch_size, shuffle=False)
+        "train": DataLoader(list(zip(X_train, y_train)), batch_size=BATCH_SIZE, shuffle=True),
+        "val": DataLoader(list(zip(X_val, y_val)), batch_size=BATCH_SIZE, shuffle=False),
+        "test": DataLoader(list(zip(X_test, y_test)), batch_size=BATCH_SIZE, shuffle=False)
     }
 
     input_conf = "repeat"
@@ -272,13 +252,13 @@ if __name__ == "__main__":
     model_ft = model_ft.to(device)
 
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.Adam(trainable_params(model_ft, feature_extract=feature_extract), lr=lr)
+    optimizer_ft = optim.Adam(trainable_params(model_ft, feature_extract=FEATURE_EXTRACT), lr=LR)
 
     # Setup the loss fxn
     criterion = nn.CrossEntropyLoss()
 
     # Train and evaluate
-    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
+    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=NUM_EPOCHS)
 
     cnn_conf_scratch = {
         "cnn_type": "vggish",
@@ -294,10 +274,10 @@ if __name__ == "__main__":
     scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf, device)
     scratch_model = scratch_model.to(device)
 
-    scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=lr)
+    scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=LR)
     scratch_criterion = nn.CrossEntropyLoss()
     _, scratch_hist, _ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer,
-                                     num_epochs=num_epochs)
+                                     num_epochs=NUM_EPOCHS)
 
     # Plot the training curves of validation accuracy vs. number
     #  of training epochs for the transfer learning method and
@@ -315,6 +295,6 @@ if __name__ == "__main__":
     plt.plot(range(1, len(shist) + 1), shist, label="Scratch")
     plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
     plt.ylim((0, 1.))
-    plt.xticks(np.arange(1, num_epochs + 1, 1.0))
+    plt.xticks(np.arange(1, NUM_EPOCHS + 1, 1.0))
     plt.legend()
     plt.show()
