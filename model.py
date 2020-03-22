@@ -228,7 +228,7 @@ class Ensemble(nn.Module):
         super(Ensemble, self).__init__()
         self.input = Input(input_conf, cnn_type, device)
         if cnn_type == "vggish":
-            self.cnn = VGGish(urls=None, pretrained=True, preprocess=False, postprocess=False, progres)
+            self.cnn = VGGish(urls=None, pretrained=True, preprocess=False, postprocess=False, progress=True)
         elif cnn_type == "resnet":
             self.cnn = ResNet50_ft(**cnn_conf)
         else:
