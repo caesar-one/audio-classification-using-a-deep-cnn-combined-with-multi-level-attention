@@ -12,6 +12,9 @@ SAMPLES_NUM_VGGISH = SR_VGGISH * 4
 SR_RESNET = 22_050
 SAMPLES_NUM_RESNET = SR_RESNET * 4
 
+#[x[1] for x in sorted(list(set([tuple(x) for x in pd.read_csv(METADATA_PATH)[["classID","class"]].to_numpy().tolist()])))]
+TARGET_NAMES = ['air_conditioner', 'car_horn', 'children_playing', 'dog_bark', 'drilling',
+                'engine_idling', 'gun_shot', 'jackhammer', 'siren', 'street_music']
 
 ##################
 #  MODEL PARAMS  #

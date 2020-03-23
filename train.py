@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import torch
+from sklearn.metrics import classification_report
 
 import matplotlib.pyplot as plt
 from glob import glob
@@ -144,6 +145,7 @@ def test_model(model, dataloader, criterion, optimizer):
     running_corrects = 0
 
     # Iterate over data.f
+    metric_pred, metric_true = [], []
     for inputs, labels in dataloader:
         inputs = inputs.to(device)
         labels = labels.to(device).long()
@@ -164,6 +166,9 @@ def test_model(model, dataloader, criterion, optimizer):
         running_loss += loss.item() * inputs.size(0)
         running_corrects += torch.sum(preds == labels.data)
 
+        metric_pred.append(preds)
+        metric_true.append(labels.data)
+
     test_loss = running_loss / len(dataloader.dataset)
     test_acc = running_corrects.double() / len(dataloader.dataset)
 
@@ -174,7 +179,12 @@ def test_model(model, dataloader, criterion, optimizer):
     time_elapsed = time.time() - since
     print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
-    return test_acc
+    metric_true = torch.cat(metric_true, 0)
+    metric_pred = torch.cat(metric_pred, 0)
+
+    print(classification_report(metric_true,metric_pred,target_names=TARGET_NAMES))
+    results = classification_report(metric_true,metric_pred,target_names=TARGET_NAMES, output_dict=True)
+    return test_acc, results
 
 
 def _save_checkpoint(model, criterion, optimizer, epoch, loss, accuracy, history, path):
