@@ -41,13 +41,14 @@ class CNN(nn.Module):
                                                      padding=3,
                                                      bias=False)
             if just_bottlenecks:
-                modules = list(self.resnet_model.children())[:-1]  # delete the last fc layer.
+                modules = list(self.cnn_model.children())[:-1]  # delete the last fc layer.
+
                 modules.append(CnnFlatten(cnn_type))  # TODO Rivedere questa istruzione (e solo questa!)
-                self.resnet_model = nn.Sequential(*modules)
+                self.cnn_model = nn.Sequential(*modules)
 
             else:
-                num_ftrs = self.resnet_model.fc.in_features
-                self.resnet_model.fc = nn.Linear(num_ftrs, num_classes)
+                num_ftrs = self.cnn_model.fc.in_features
+                self.cnn_model.fc = nn.Linear(num_ftrs, num_classes)
 
         elif cnn_type == "vggish":
 
@@ -61,9 +62,10 @@ class CNN(nn.Module):
 
             if just_bottlenecks:
                 modules = []
-                modules.append(list(self.resnet_model.children())[0])  # just use the first group of layers.
+                modules.append(list(self.cnn_model.children())[0])  # just use the first group of layers.
+                print()
                 modules.append(CnnFlatten(cnn_type))  # TODO Rivedere questa istruzione (e solo questa!)
-                self.resnet_model = nn.Sequential(*modules)
+                self.cnn_model = nn.Sequential(*modules)
 
         else:
             raise Exception("Invalid CNN model name specified.")
