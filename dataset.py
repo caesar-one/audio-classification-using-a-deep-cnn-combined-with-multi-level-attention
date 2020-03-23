@@ -1,7 +1,11 @@
 from typing import Tuple
+from typing import List
+
+import torch
 
 try:
     import google.colab
+
     IN_COLAB = True
 except:
     IN_COLAB = False
@@ -13,11 +17,12 @@ else:
 
 import numpy as np
 import pandas as pd
+import librosa
 import librosa.display
 from glob import glob
 import pickle
+import matplotlib.pyplot as plt
 
-from model import T as slots_num
 from params import *
 from torchvggish.vggish_input import wavfile_to_examples
 
@@ -37,16 +42,18 @@ def normalize(d: np.ndarray, _min: float, _max: float) -> np.ndarray:
 
 def load(save: bool = True,
          load_saved: bool = True,
-         create_spec: bool = True,
          path: str = "",
          save_filename: str = "audio_data.pkl",
          cnn_type: str = "vggish",
-         use_sliding: bool = True,
+         use_librosa: bool = False,
+         overlap: bool = True,
          debug: bool = False,
          ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
-    if use_sliding and slots_num < 4:
+    if overlap and T < 4:
         raise Exception('Number of slots must be >= 4')
+    if not overlap and cnn_type != "resnet":
+        raise Exception('This combination of params has not been implemented yet')
 
     if path + save_filename in glob(path + "*.pkl") and load_saved:
         # Load the dataset
@@ -76,10 +83,14 @@ def load(save: bool = True,
             sr = SR_VGGISH
             samples_num = SAMPLES_NUM_VGGISH
             s_shape = S_VGGISH_SHAPE
+            x_size = s_shape[0]
+            y_size = s_shape[1]
         elif cnn_type == "resnet":
             sr = SR_RESNET
             samples_num = SAMPLES_NUM_RESNET
             s_shape = S_RESNET_SHAPE
+            x_size = s_shape[1]
+            y_size = s_shape[0]
         else:
             raise Exception("CNN type is not valid.")
 
@@ -87,65 +98,20 @@ def load(save: bool = True,
         for paths, setname in zip([wav_paths_train, wav_paths_val, wav_paths_test], ["train", "val", "test"]):
             for wav_path in tqdm(paths[:BATCH_SIZE] if debug else paths,
                                  desc=f"Converting {setname} samples in spectrograms"):
-                if create_spec:
-                    # Load the audio clip stored at *wav_path* in an audio array
-                    audio_array, _ = librosa.load(wav_path)
-                    # Make sure that all audio arrays are of the same length *samples_number*
-                    # (cut if larger, zero-fill if smaller)
-                    audio_array = audio_array[:samples_num]
-                    reshaped_array = np.zeros((samples_num,))
-                    reshaped_array[:audio_array.shape[0]] = audio_array
-                    # Compute the spectrogram of the reshaped array.
-                    # The granularity on frequency (n_mels) axis depends on the chosen model.
-                    # The granularity on time axis (hop_length) depends on the fact we use sliding mode or not.
-                    if cnn_type == "vggish":
-                        s = librosa.feature.melspectrogram(reshaped_array, sr=sr, n_mels=64, hop_length=160, window="hann",
-                                                           center=False, pad_mode="reflect", htk=True, fmin=125, fmax=7500)
-                    elif cnn_type == "resnet":
-                        s = librosa.feature.melspectrogram(reshaped_array, sr=sr, n_mels=s_shape[0],
-                                                           hop_length=samples_num // (s_shape[1] * 4) if use_sliding
-                                                           else samples_num // (s_shape[1] * slots_num))
-                    else:
-                        raise Exception("CNN type is not valid.")
-                    # Convert the spectrogram entries into decibels, with respect to ref=1.0.
-                    # If x is an entry of the spectrogram, this computes the scaling x ~= 10 * log10(x / ref)
-                    s = librosa.power_to_db(s)
-                    # Add a new dimension at position 0 (this will be the channel dimension)
-                    s = s[np.newaxis, :, :]
-                    # Split the spectrogram
-                    if use_sliding:
-                        # If using the "sliding" mode, the split is done into *slots_num* overlapping slots.
-                        # Each slot has a fixed length of 1 second.
-
-                        # slots = as_strided(
-                        #    reshaped_array,
-                        #    (slots_num, slot_len),  # shape of the *slots* array
-                        #    ((samples_num - slot_len) // (slots_num - 1) * 8, 8)  # (bytes step, bytes per element)
-                        # )#.copy()
-                        slots = [s[:, :, i: i + s_shape[1]] for i in
-                                 range(0, s.shape[2], (s.shape[2] - s_shape[1]) // (slots_num - 1))][:slots_num]
-                    else:
-                        # Otherwise, the split is done into *slots_num* contiguous slots.
-                        # Each slot has length *samples_num* / *slots_num*
-                        slots = [s[:, :, i: i + s_shape[1]] for i in
-                                 range(0, s.shape[2], s_shape[1])][:slots_num]
-                else:
-                    slots = wavfile_to_examples(wav_path, return_tensor=False)
-                    # TODO codice pecionata
-                    slots = slots[:4]
-                    reshaped_slots = np.zeros((4, 1, slots.shape[1], slots.shape[2]))
-                    reshaped_slots[:slots.shape[0], 0] = slots
-                    #slots = np.swapaxes(reshaped_slots, 2, 3)
-                # Append each spectrogram list to their respective set
+                # Create spectrogram and split into frames
+                spec = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
+                # Split the spectrogram
+                frames = split(spec, T, x_size, y_size, overlap)
+                # Append each frames list to their respective set
                 audio_filename = wav_path.split("/")[-1]
                 if setname == "train":
-                    X_train.append(slots)
+                    X_train.append(frames)
                     y_train.append(int(name2class[audio_filename]))
                 elif setname == "val":
-                    X_val.append(slots)
+                    X_val.append(frames)
                     y_val.append(int(name2class[audio_filename]))
                 else:
-                    X_test.append(slots)
+                    X_test.append(frames)
                     y_test.append(int(name2class[audio_filename]))
 
         # Convert spectrogram lists into numpy arrays
@@ -157,6 +123,7 @@ def load(save: bool = True,
         y_test = np.array(y_test)
 
         X_tot = np.concatenate([X_train, X_val, X_test])
+
         # Normalize the dataset in between [0,1]
         _min = np.min(X_tot)
         _max = np.max(X_tot)
@@ -173,14 +140,125 @@ def load(save: bool = True,
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 
-if __name__ == '__main__':
-    import dataset, model
-    from train import *
+def overlapping_split(spec: np.ndarray, num_frames: int, frame_length: int) -> List[np.ndarray]:
+    step_length = spec.shape[1] - frame_length
 
+    '''
+    window_length = s_shape[1]
+    step_length = spec.shape[1] - s_shape[0]
+    shape = (num_frames, window_length) + spec.shape[1:]
+    strides = (spec.strides[1] * step_length,) + spec.strides
+    return np.lib.stride_tricks.as_strided(spec, shape=shape, strides=strides)
+    '''
+
+    return [spec[:, i: i + frame_length]
+            for i in range(0, spec.shape[1], step_length // (num_frames - 1))][:num_frames]
+
+
+def contiguous_split(spec: np.ndarray, num_frames: int) -> List[np.ndarray]:
+    frames = np.array_split(spec, num_frames, axis=1)
+    for i in range(len(frames)):
+        if len(frames[i]) != spec.shape[1] // num_frames:
+            frames[i] = frames[i][:, :-1]
+    return frames
+
+
+def split(spec: np.ndarray, num_frames: int, x_size: int, y_size: int, overlap: bool):
+    """
+        :param spec: the spectogram, np.ndarray (s_shape[0], *), where first dim is freq and second dim is time
+            (* means that the second dimension is variable)
+        :param num_frames: number of pieces into which split the spectrogram
+        :param s_shape: see params.py
+        :param overlap: If True, the split has *num_frames* overlapping frame. Each frame has a fixed length of 1 second.
+                         Otherwise, the split has T contiguous slots.
+                         Each slot has length *samples_num* / *num_frames*
+        :return: the spectrogram split in frames, np.ndarray (s_shape[0], s_shape[1])
+    """
+    if overlap:
+        frames = overlapping_split(spec, num_frames, x_size)
+    else:
+        frames = contiguous_split(spec, num_frames)
+
+    # Check shape and add a new axis in position 0 (this will be the channel axis)
+    for i in range(len(frames)):
+        assert frames[i].shape == (y_size, x_size)
+        frames[i] = frames[i][np.newaxis, :, :]
+
+    return frames
+
+
+def create_spec(wav_path: str,
+                cnn_type: str,
+                sr: int,
+                samples_num: int,
+                x_size: int,
+                y_size: int,
+                use_librosa: bool,
+                overlap: bool
+                ) -> np.ndarray:
+    """
+    :param wav_path: the audio filename
+    :param cnn_type: "resnet" or "vggish"
+    :param sr: sampling rate,
+    :param samples_num: number of total samples in the audio array (required for cutting/padding)
+    :param s_shape: shape of a spectogram frame (see the function frame)
+    :param use_librosa: If True, use librosa to generate the spectrogram, otherwise use torchvggish
+    :param overlap: If True, the split has *num_frames* overlapping frame. Each frame has a fixed length of 1 second.
+                         Otherwise, the split has T contiguous slots.
+                         Each slot has length *samples_num* / *num_frames*
+    :return: the spectrogram related to the audio data contained in *data*, np.ndarray (s_shape[0], *)
+    """
+
+    if use_librosa:
+        # Load the audio clip stored at *wav_path* in an audio array
+        audio_array, _ = librosa.load(wav_path, sr=sr)
+        # Make sure that all audio arrays are of the same length *samples_num*
+        # (cut if larger, zero-fill if smaller)
+        audio_array = audio_array[:samples_num]
+        reshaped_array = np.zeros((samples_num,))
+        reshaped_array[:audio_array.shape[0]] = audio_array
+        # Compute the spectrogram of the reshaped array.
+        # The granularity on frequency (n_mels) axis is y_size
+        # The granularity on time axis (hop_length) depends on whether we will divide the result in frames or not
+        if cnn_type == "vggish":
+            spec = librosa.feature.melspectrogram(reshaped_array, sr=sr, n_mels=64, hop_length=160, center=False,
+                                                  htk=True, fmin=125, fmax=7500)
+        elif cnn_type == "resnet":
+            spec = librosa.feature.melspectrogram(reshaped_array, sr=sr, n_mels=y_size,
+                                                  hop_length=samples_num // (x_size * 4) if overlap
+                                                  else samples_num // (x_size * T))
+        else:
+            raise Exception("CNN type is not valid.")
+        # Convert the spectrogram entries into decibels, with respect to ref=1.0.
+        # If x is an entry of the spectrogram, this computes the scaling x ~= 10 * log10(x / ref)
+        spec = librosa.power_to_db(spec)
+
+    else:
+        # wavfile_to_examples return spectrograms of shape (96, 64) grouped into a np.ndarray of shape (*, 96, 64)
+        # * depends on the length of the audio file
+        slots = wavfile_to_examples(wav_path, return_tensor=False)
+        reshaped = np.zeros((4, slots.shape[1], slots.shape[2]))
+        # reshaped.fill(-10)
+        reshaped[:slots.shape[0]] = slots
+        reshaped = np.swapaxes(reshaped, 1, 2)
+        spec = np.concatenate(reshaped[:4], axis=1)
+
+    return spec
+
+
+def plot_spec(spec: np.ndarray, sr: int) -> None:
+    librosa.display.specshow(spec, sr=sr)
+    plt.colorbar()
+    plt.show()
+
+
+if __name__ == '__main__':
+    # GENERATE DATASET
+
+    '''
     data_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/'
     postfix = 'vggish_nospec.pkl'
 
-    model.T = 10
     X_train, X_val, X_test, y_train, y_val, y_test = dataset.load(
         load_saved=False,
         save=True,
@@ -188,73 +266,57 @@ if __name__ == '__main__':
         save_filename='audio_data_' + postfix,
         create_spec=False
     )
-
     '''
-    FROM_SCRATCH = True
 
-    batch_size = 64
-    num_epochs = 20
-    feature_extract = True
-    lr = 0.001
+    # TRY WITH SINGLE WAV FILE
 
-    dataloaders_dict = {
-        "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
-        "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
-        "test": DataLoader(list(zip(X_test, y_test)), batch_size=batch_size, shuffle=False)
-    }
+    # params
+    cnn_type = 'vggish'
+    wav_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/UrbanSound8K/audio/fold1/7061-6-0-0.wav'
+    overlap = True
+    T = 8
 
-    input_conf = "repeat"
-
-    model_conf = [2, 2]
-
-    cnn_conf = {
-        "num_classes": 128,
-        "use_pretrained": True,
-        "just_bottleneck": True,
-        "cnn_trainable": False,
-        "first_cnn_layer_trainable": False,
-        "in_channels": 3} if not FROM_SCRATCH else {
-
-        "num_classes": 128,
-        "use_pretrained": False,
-        "just_bottleneck": True,
-        "cnn_trainable": True,
-        "first_cnn_layer_trainable": False,
-        "in_channels": 3
-    }
-
-    model_ft = model.Ensemble(input_conf, cnn_conf, model_conf, device, cnn_type="vggish")
-
-    # Send the model to GPU
-    model_ft = model_ft.to(device)
-
-    # Gather the parameters to be optimized/updated in this run. If we are
-    #  finetuning we will be updating all parameters. However, if we are
-    #  doing feature extract method, we will only update the parameters
-    #  that we have just initialized, i.e. the parameters with requires_grad
-    #  is True.
-    params_to_update = model_ft.parameters()
-    print("Params to learn:")
-    if feature_extract:
-        params_to_update = []
-        for name, param in model_ft.named_parameters():
-            if param.requires_grad == True:
-                params_to_update.append(param)
-                print("\t", name)
+    if cnn_type == "vggish":
+        sr = SR_VGGISH
+        samples_num = SAMPLES_NUM_VGGISH
+        s_shape = S_VGGISH_SHAPE
+        x_size = s_shape[0]
+        y_size = s_shape[1]
+    elif cnn_type == "resnet":
+        sr = SR_RESNET
+        samples_num = SAMPLES_NUM_RESNET
+        s_shape = S_RESNET_SHAPE
+        x_size = s_shape[1]
+        y_size = s_shape[0]
     else:
-        for name, param in model_ft.named_parameters():
-            if param.requires_grad == True:
-                print("\t", name)
+        raise Exception("CNN type is not valid.")
 
-    # Observe that all parameters are being optimized
-    optimizer_ft = optim.Adam(params_to_update if not FROM_SCRATCH else model_ft.parameters(), lr=lr)
+    ours = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa=True, overlap=overlap)
 
-    # Setup the loss fxn
-    criterion = nn.CrossEntropyLoss()
+    theirs = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa=False, overlap=overlap)
 
-    ###############################################################
+    # Normalize the dataset in between [0,1]
+    _min_our = np.min(ours)
+    _max_our = np.max(ours)
+    _min_their = np.min(theirs)
+    _max_their = np.max(theirs)
 
-    # Train and evaluate
-    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft,
-                                           save_model_path=data_path + 'model_' + postfix + '.pkl', resume=False)
-                                           '''
+    ours = normalize(ours, _min_our, _max_our)
+    theirs = normalize(theirs, _min_their, _max_their)
+
+    plot_spec(ours, sr)
+    plot_spec(theirs, sr)
+    if ours.shape == theirs.shape:
+        plot_spec(ours - theirs, sr)
+    else:
+        print('our shape is different from their shape, {} and {}'.format(ours.shape, theirs.shape))
+
+    ours = split(ours, T, x_size, y_size, overlap=overlap)
+    theirs = split(theirs, T, x_size, y_size, overlap=overlap)
+
+    for o in ours:
+        plot_spec(o[0], sr)
+
+    for t in theirs:
+        plot_spec(t[0], sr)
+
