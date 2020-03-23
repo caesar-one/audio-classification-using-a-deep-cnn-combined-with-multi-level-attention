@@ -20,9 +20,9 @@ def set_requires_grad(model, value):
 class CNN(nn.Module):
     def __init__(self,
                  cnn_type="vggish", # the pretrained model to use. It can either "resnet" or "vggish" (default)
-                 num_classes=10,  # number of output classes (makes sense if combined with just_bottleneck=False)
+                 num_classes=10,  # number of output classes (makes sense if combined with just_bottlenecks=False)
                  use_pretrained=True,  # Uses a pretrained version of resnet50
-                 just_bottleneck=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
+                 just_bottlenecks=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
                  cnn_trainable=False,  # if =True CNN part is trainable. Otherwise the gradient will NOT be calculated
                  first_cnn_layer_trainable=False,  # Sets the first CNN layer trainable, to optimize for the dataset
                  in_channels=3):  # the the number of input channels is reshaped
@@ -40,7 +40,7 @@ class CNN(nn.Module):
                     self.cnn_model.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=7, stride=2,
                                                      padding=3,
                                                      bias=False)
-            if just_bottleneck:
+            if just_bottlenecks:
                 modules = list(self.resnet_model.children())[:-1]  # delete the last fc layer.
                 modules.append(CnnFlatten(cnn_type))  # TODO Rivedere questa istruzione (e solo questa!)
                 self.resnet_model = nn.Sequential(*modules)
@@ -59,7 +59,7 @@ class CNN(nn.Module):
             if not cnn_trainable:
                 set_requires_grad(self.cnn_model, False)
 
-            if just_bottleneck:
+            if just_bottlenecks:
                 modules = []
                 modules.append(list(self.resnet_model.children())[0])  # just use the first group of layers.
                 modules.append(CnnFlatten(cnn_type))  # TODO Rivedere questa istruzione (e solo questa!)
