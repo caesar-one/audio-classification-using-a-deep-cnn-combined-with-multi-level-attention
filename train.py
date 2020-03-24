@@ -46,7 +46,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
     if resume:
         assert save_model_path is not None
         if save_model_path in glob(save_model_path):
-            _model, _criterion, _optimizer, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(
+            _model, _optimizer, _criterion, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(
                 save_model_path)
             model = _model
             criterion = _criterion

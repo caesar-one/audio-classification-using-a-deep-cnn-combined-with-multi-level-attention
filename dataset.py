@@ -1,8 +1,6 @@
 from typing import Tuple
 from typing import List
 
-import torch
-
 try:
     import google.colab
 
@@ -25,6 +23,7 @@ import matplotlib.pyplot as plt
 
 from params import *
 from torchvggish.vggish_input import wavfile_to_examples
+
 
 '''
 This module is used to load the dataset.
@@ -52,8 +51,13 @@ def load(save: bool = True,
 
     if overlap and T < 4:
         raise Exception('Number of slots must be >= 4')
-    if not overlap and cnn_type != "resnet":
-        raise Exception('This combination of params has not been implemented yet')
+    if not overlap and cnn_type == "vggish" and not use_librosa and T != 4:
+        raise Exception('This combination of params needs T = 4')
+
+    # Force to use librosa for resnet
+    if cnn_type == "resnet" and not use_librosa:
+        print('use_librosa forced to True')
+        use_librosa = True
 
     if path + save_filename in glob(path + "*.pkl") and load_saved:
         # Load the dataset
@@ -102,8 +106,12 @@ def load(save: bool = True,
                 spec = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
                 # Split the spectrogram
                 frames = split(spec, T, x_size, y_size, overlap)
+                # Add a new axis for the channel dimension
+                for i in range(len(frames)):
+                    frames[i] = frames[i][np.newaxis, :, :]
                 # Append each frames list to their respective set
                 audio_filename = wav_path.split("/")[-1]
+
                 if setname == "train":
                     X_train.append(frames)
                     y_train.append(int(name2class[audio_filename]))
@@ -131,6 +139,11 @@ def load(save: bool = True,
         X_val = normalize(X_val, _min, _max)
         X_test = normalize(X_test, _min, _max)
 
+        # Plot frames for manual check on the file fold10/100795-3-0-0.wav (can be removed)
+        if debug:
+            for i in range(T):
+                plot_spec(X_train[5, i, 0], sr)
+
         if save:
             # Save the dataset
             with open(path + save_filename, "wb") as f:
@@ -155,12 +168,15 @@ def overlapping_split(spec: np.ndarray, num_frames: int, frame_length: int) -> L
             for i in range(0, spec.shape[1], step_length // (num_frames - 1))][:num_frames]
 
 
-def contiguous_split(spec: np.ndarray, num_frames: int) -> List[np.ndarray]:
+def contiguous_split(spec: np.ndarray, num_frames: int, frame_length: int) -> List[np.ndarray]:
+    '''
     frames = np.array_split(spec, num_frames, axis=1)
     for i in range(len(frames)):
-        if len(frames[i]) != spec.shape[1] // num_frames:
-            frames[i] = frames[i][:, :-1]
-    return frames
+        if frames[i].shape[1] != spec.shape[1] // num_frames:
+            frames[i] = frames[i][:, :-2]
+    '''
+    return [spec[::, i: i + frame_length] for i in
+             range(0, spec.shape[1], frame_length)][:num_frames]
 
 
 def split(spec: np.ndarray, num_frames: int, x_size: int, y_size: int, overlap: bool):
@@ -177,12 +193,12 @@ def split(spec: np.ndarray, num_frames: int, x_size: int, y_size: int, overlap: 
     if overlap:
         frames = overlapping_split(spec, num_frames, x_size)
     else:
-        frames = contiguous_split(spec, num_frames)
+        frames = contiguous_split(spec, num_frames, x_size)
 
     # Check shape and add a new axis in position 0 (this will be the channel axis)
     for i in range(len(frames)):
-        assert frames[i].shape == (y_size, x_size)
-        frames[i] = frames[i][np.newaxis, :, :]
+        assert frames[i].shape == (y_size, x_size),\
+            "{} should be ({},{}); instead is ({},{})".format(i, y_size, x_size, frames[i].shape[0], frames[i].shape[1])
 
     return frames
 
@@ -206,7 +222,7 @@ def create_spec(wav_path: str,
     :param overlap: If True, the split has *num_frames* overlapping frame. Each frame has a fixed length of 1 second.
                          Otherwise, the split has T contiguous slots.
                          Each slot has length *samples_num* / *num_frames*
-    :return: the spectrogram related to the audio data contained in *data*, np.ndarray (s_shape[0], *)
+    :return: the spectrogram related to the audio data contained in *data*, np.ndarray (y_size, 4 seconds)
     """
 
     if use_librosa:
@@ -247,34 +263,44 @@ def create_spec(wav_path: str,
 
 
 def plot_spec(spec: np.ndarray, sr: int) -> None:
-    librosa.display.specshow(spec, sr=sr)
+    librosa.display.specshow(spec, x_axis='time', y_axis='mel', sr=sr)
+
     plt.colorbar()
     plt.show()
 
 
 if __name__ == '__main__':
+    '''
     # GENERATE DATASET
 
-    '''
     data_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/'
-    postfix = 'vggish_nospec.pkl'
+    postfix = 'vggish_native_4_nooverlap.pkl'
 
-    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load(
-        load_saved=False,
-        save=True,
-        path=data_path,
-        save_filename='audio_data_' + postfix,
-        create_spec=False
-    )
-    '''
-
-    # TRY WITH SINGLE WAV FILE
 
     # params
     cnn_type = 'vggish'
     wav_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/UrbanSound8K/audio/fold1/7061-6-0-0.wav'
-    overlap = True
-    T = 8
+    overlap = False
+    T = 4
+    use_librosa = False
+
+
+    X_train, X_val, X_test, y_train, y_val, y_test = load(
+        load_saved=False,
+        save=True,
+        path=data_path,
+        save_filename='audio_data_' + postfix,
+        cnn_type=cnn_type,
+        overlap=overlap,
+        use_librosa=use_librosa,
+        debug=False
+    )
+    '''
+
+    '''
+
+    # TRY WITH SINGLE WAV FILE
+
 
     if cnn_type == "vggish":
         sr = SR_VGGISH
@@ -319,4 +345,52 @@ if __name__ == '__main__':
 
     for t in theirs:
         plot_spec(t[0], sr)
+    '''
+    wav = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/UrbanSound8K/audio/fold1/7061-6-0-0.wav'
+    spec1 = create_spec(
+        wav,
+        "resnet", 22050, 88200, 224, 224, True, overlap=True)
+    spec2h = create_spec(
+        wav,
+        "vggish", 16000, 64000, 96, 64, False, overlap=True)
+    spec2l = create_spec(
+        wav,
+        "vggish", 16000, 64000, 96, 64, True, overlap=True
+    )
+
+    min1 = np.min(spec1);
+    min2 = np.min(spec2h);
+    min3 = np.min(spec2l);
+    min = np.min([min1, min2, min3])
+    max1 = np.max(spec1);
+    max2 = np.max(spec2h);
+    max3 = np.max(spec2l);
+    max = np.max([max1, max2, max3])
+    spec1 = normalize(spec1, min, max)
+    spec2l = normalize(spec2l, min, max)
+    spec2h = normalize(spec2h, min, max)
+
+    plot_spec(spec1, 22050)
+    plot_spec(spec2l, 16000)
+    plot_spec(spec2h, 16000)
+
+    spec1 = split(spec1, 10,224,224,True )
+    spec2h = split(spec2h, 10, 96, 64, True)
+    spec2l = split(spec2l, 10, 96, 64, True)
+
+    #specn = wavfile_to_examples(wav, return_tensor=False)[0]
+    #specn=normalize(specn, min, max)
+    #plot_spec(specn, 16000)
+
+
+    #spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
+    #spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
+    #spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
+    #plot_spec(np.spec1_flat, 22050)
+    #plot_spec(np.concatenate(spec2l[0]), 16000)
+    #plot_spec(np.concatenate(spec2h), 16000)
+    
+    for frame in spec2h:
+        plot_spec(frame, 22050)
+
 
