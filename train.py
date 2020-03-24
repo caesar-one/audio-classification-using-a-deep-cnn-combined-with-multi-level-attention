@@ -1,6 +1,5 @@
 try:
     import google.colab
-
     IN_COLAB = True
 except:
     IN_COLAB = False
@@ -32,13 +31,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # if patience=None the early stopping mechanism will not be active. Otherwise, if patience=N training will be stopped
 #       if there will not be improvements for N epochs (on the validation set). If save_model_path=None, the model won't
 #       be saved. Otherwise it will be saved in the specified path.
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patience=10, save_model_path=None,
-                resume=False):
+def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
+                patience=10, save_model_path=None, resume=False, finetune=False):
     since = time.time()
 
     val_acc_history = []
 
-    best_model_wts = copy.deepcopy(model.state_dict())
+    best_model_wts = copy.deepcopy(clf.state_dict())
     best_acc = 0.0
     best_epoch = 0
     epoch = 0
@@ -46,16 +45,17 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
     if resume:
         assert save_model_path is not None
         if save_model_path in glob(save_model_path):
-            _model, _optimizer, _criterion, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(
-                save_model_path)
-            model = _model
+            _model, _criterion, _optimizer, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(save_model_path)
+            if finetune:
+                model.set_requires_grad(_model, True)
+            clf = _model
             criterion = _criterion
             optimizer = _optimizer
             epoch = _epoch + 1
             best_epoch = _epoch
             best_acc = _accuracy
             val_acc_history = _history
-            best_model_wts = copy.deepcopy(model.state_dict())
+            best_model_wts = copy.deepcopy(clf.state_dict())
         else:
             raise Exception("No such model file in the specified path.")
 
@@ -68,16 +68,16 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
-                model.train()  # Set model to training mode
+                clf.train()  # Set model to training mode
             else:
-                model.eval()  # Set model to evaluate mode
+                clf.eval()  # Set model to evaluate mode
 
             running_loss = 0.0
             running_corrects = 0
 
             # Iterate over data.
             for inputs, labels in tqdm(dataloaders[phase]):
-                inputs = inputs.to(device).float()
+                inputs = inputs.to(device)
                 labels = labels.to(device).long()
 
                 # zero the parameter gradients
@@ -87,7 +87,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     # Get model outputs and calculate loss
-                    outputs = model(inputs)
+                    outputs = clf(inputs)
                     loss = criterion(outputs, labels)
 
                     _, preds = torch.max(outputs, 1)
@@ -106,17 +106,13 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
 
             print('{} Loss: {:.4f}, Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
-            print('best_acc', best_acc)
-            print('best_epoch', best_epoch)
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
-                print('im saving')
                 best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
+                best_model_wts = copy.deepcopy(clf.state_dict())
                 best_epoch = epoch
                 if save_model_path:
-                    _save_checkpoint(model, criterion, optimizer, epoch, epoch_loss, best_acc, val_acc_history,
-                                     save_model_path)
+                    _save_checkpoint(clf, criterion, optimizer, epoch, epoch_loss, best_acc, val_acc_history, save_model_path)
             if phase == 'val':
                 val_acc_history.append(epoch_acc)
             if patience is not None:
@@ -129,11 +125,11 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
     print('Best val Acc: {:4f}'.format(best_acc))
 
     # load best model weights
-    model.load_state_dict(best_model_wts)
+    clf.load_state_dict(best_model_wts)
 
-    test_acc = test_model(model, test_dataloader, criterion, optimizer)
+    test_acc = test_model(clf, test_dataloader, criterion, optimizer)
 
-    return model, val_acc_history, test_acc
+    return clf, val_acc_history, test_acc
 
 
 def test_model(model, dataloader, criterion, optimizer):
@@ -189,8 +185,8 @@ def test_model(model, dataloader, criterion, optimizer):
     metric_true = torch.cat(metric_true, 0).cpu()
     metric_pred = torch.cat(metric_pred, 0).cpu()
 
-    print(classification_report(metric_true, metric_pred, target_names=TARGET_NAMES))
-    results = classification_report(metric_true, metric_pred, target_names=TARGET_NAMES, output_dict=True)
+    print(classification_report(metric_true,metric_pred,target_names=TARGET_NAMES,digits=3))
+    results = classification_report(metric_true,metric_pred,target_names=TARGET_NAMES, output_dict=True, digits=5)
     return test_acc, results
 
 
@@ -205,15 +201,13 @@ def _save_checkpoint(model, criterion, optimizer, epoch, loss, accuracy, history
         'history': history
     }, path)
 
-
 def _resume_from_checkpoint(path):
     d = torch.load(path)
-    return d["model"], d["optimizer"], d["criterion"], d["epoch"], d["loss"], d["accuracy"], d["history"]
+    return d["model"], d["criterion"], d["optimizer"], d["epoch"], d["loss"], d["accuracy"], d["history"]
 
 
 def save_model(model, path):
     torch.save(model.state_dict(), path)
-
 
 def load_model(model_args, path):
     m = model.Ensemble(**model_args)
@@ -225,8 +219,6 @@ def load_model(model_args, path):
     #  doing feature extract method, we will only update the parameters
     #  that we have just initialized, i.e. the parameters with requires_grad
     #  is True.
-
-
 def trainable_params(model, feature_extract):
     params_to_update = model.parameters()
     print("Params to learn:")
@@ -244,26 +236,13 @@ def trainable_params(model, feature_extract):
 
 
 if __name__ == "__main__":
-    T = 4
 
-    data_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/'
-    postfix = 'vggish_native_4'
-
-    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load(
-        load_saved=True,
-        save=False,
-        path=data_path,
-        save_filename='audio_data_' + postfix + '.pkl',
-    )
-
-    batch_size = 64
-    feature_extract = True
-    lr = 0.001
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
 
     dataloaders_dict = {
-        "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
-        "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
-        "test": DataLoader(list(zip(X_test, y_test)), batch_size=batch_size, shuffle=False)
+        "train": DataLoader(list(zip(X_train, y_train)), batch_size=BATCH_SIZE, shuffle=True),
+        "val": DataLoader(list(zip(X_val, y_val)), batch_size=BATCH_SIZE, shuffle=False),
+        "test": DataLoader(list(zip(X_test, y_test)), batch_size=BATCH_SIZE, shuffle=False)
     }
 
     input_conf = "repeat"
@@ -272,49 +251,46 @@ if __name__ == "__main__":
 
     cnn_conf = {
         "cnn_type": "vggish",
-        "num_classes": 128,
+        "num_classes": 10,
         "use_pretrained": True,
-        "just_bottlenecks": True,
+        "just_bottleneck":False,
         "cnn_trainable": False,
         "first_cnn_layer_trainable": False,
-        "in_channels": 3}
-
-    save_model_path = data_path + 'model_' + postfix + '' + '.pkl'
+        "in_channels": 3
+    }
 
     model_ft = model.Ensemble(input_conf, cnn_conf, model_conf, device)
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
 
-    # Gather the parameters to be optimized/updated in this run. If we are
-    #  finetuning we will be updating all parameters. However, if we are
-    #  doing feature extract method, we will only update the parameters
-    #  that we have just initialized, i.e. the parameters with requires_grad
-    #  is True.
-    params_to_update = model_ft.parameters()
-    print("Params to learn:")
-    if feature_extract:
-        params_to_update = []
-        for name, param in model_ft.named_parameters():
-            if param.requires_grad == True:
-                params_to_update.append(param)
-                print("\t", name)
-    else:
-        for name, param in model_ft.named_parameters():
-            if param.requires_grad == True:
-                print("\t", name)
-
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.Adam(params_to_update, lr=lr)
+    optimizer_ft = optim.Adam(trainable_params(model_ft, feature_extract=FEATURE_EXTRACT), lr=LR)
 
     # Setup the loss fxn
     criterion = nn.CrossEntropyLoss()
 
-    ###############################################################
-
     # Train and evaluate
-    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft,
-                                           save_model_path=save_model_path, resume=False)
+    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=NUM_EPOCHS)
+
+    cnn_conf_scratch = {
+        "cnn_type": "vggish",
+        "num_classes": 10,
+        "use_pretrained": False,
+        "just_bottleneck":False,
+        "cnn_trainable": False,
+        "first_cnn_layer_trainable": False,
+        "in_channels": 3
+    }
+
+    # Initialize the non-pretrained version of the model used for this run
+    scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf, device)
+    scratch_model = scratch_model.to(device)
+
+    scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=LR)
+    scratch_criterion = nn.CrossEntropyLoss()
+    _, scratch_hist, _ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer,
+                                     num_epochs=NUM_EPOCHS)
 
     # Plot the training curves of validation accuracy vs. number
     #  of training epochs for the transfer learning method and
@@ -323,14 +299,13 @@ if __name__ == "__main__":
     # shist = []
 
     ohist = [h.cpu().numpy() for h in hist]
-    # shist = [h.cpu().numpy() for h in scratch_hist]
+    shist = [h.cpu().numpy() for h in scratch_hist]
 
-    print(NUM_EPOCHS, len(ohist))
     plt.title("Validation Accuracy vs. Number of Training Epochs")
     plt.xlabel("Training Epochs")
     plt.ylabel("Validation Accuracy")
-    plt.plot(range(1, 12 + 1), ohist, label="Pretrained")
-    # plt.plot(range(1, NUM_EPOCHS + 1), shist, label="Scratch")
+    plt.plot(range(1, len(ohist) + 1), ohist, label="Pretrained")
+    plt.plot(range(1, len(shist) + 1), shist, label="Scratch")
     plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
     plt.ylim((0, 1.))
     plt.xticks(np.arange(1, NUM_EPOCHS + 1, 1.0))
