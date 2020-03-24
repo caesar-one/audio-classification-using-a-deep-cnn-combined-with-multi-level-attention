@@ -1,5 +1,6 @@
 try:
     import google.colab
+
     IN_COLAB = True
 except:
     IN_COLAB = False
@@ -31,7 +32,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # if patience=None the early stopping mechanism will not be active. Otherwise, if patience=N training will be stopped
 #       if there will not be improvements for N epochs (on the validation set). If save_model_path=None, the model won't
 #       be saved. Otherwise it will be saved in the specified path.
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patience=10, save_model_path=None, resume=False):
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patience=10, save_model_path=None,
+                resume=False):
     since = time.time()
 
     val_acc_history = []
@@ -44,7 +46,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
     if resume:
         assert save_model_path is not None
         if save_model_path in glob(save_model_path):
-            _model, _criterion, _optimizer, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(save_model_path)
+            _model, _criterion, _optimizer, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(
+                save_model_path)
             model = _model
             criterion = _criterion
             optimizer = _optimizer
@@ -109,7 +112,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
                 best_model_wts = copy.deepcopy(model.state_dict())
                 best_epoch = epoch
                 if save_model_path:
-                    _save_checkpoint(model,criterion,optimizer,epoch,epoch_loss,best_acc,val_acc_history,save_model_path)
+                    _save_checkpoint(model, criterion, optimizer, epoch, epoch_loss, best_acc, val_acc_history,
+                                     save_model_path)
             if phase == 'val':
                 val_acc_history.append(epoch_acc)
             if patience is not None:
@@ -147,7 +151,7 @@ def test_model(model, dataloader, criterion, optimizer):
     # Iterate over data.f
     metric_pred, metric_true = [], []
     for inputs, labels in dataloader:
-        inputs = inputs.to(device)
+        inputs = inputs.to(device).float()
         labels = labels.to(device).long()
 
         # zero the parameter gradients
@@ -179,11 +183,11 @@ def test_model(model, dataloader, criterion, optimizer):
     time_elapsed = time.time() - since
     print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
-    metric_true = torch.cat(metric_true, 0)
-    metric_pred = torch.cat(metric_pred, 0)
+    metric_true = np.concatenate(metric_true, 0)
+    metric_pred = np.concatenate(metric_pred, 0)
 
-    print(classification_report(metric_true,metric_pred,target_names=TARGET_NAMES))
-    results = classification_report(metric_true,metric_pred,target_names=TARGET_NAMES, output_dict=True)
+    print(classification_report(metric_true, metric_pred, target_names=TARGET_NAMES))
+    results = classification_report(metric_true, metric_pred, target_names=TARGET_NAMES, output_dict=True)
     return test_acc, results
 
 
@@ -198,6 +202,7 @@ def _save_checkpoint(model, criterion, optimizer, epoch, loss, accuracy, history
         'history': history
     }, path)
 
+
 def _resume_from_checkpoint(path):
     d = torch.load(path)
     return d["model"], d["optimizer"], d["criterion"], d["epoch"], d["loss"], d["accuracy"], d["history"]
@@ -205,6 +210,7 @@ def _resume_from_checkpoint(path):
 
 def save_model(model, path):
     torch.save(model.state_dict(), path)
+
 
 def load_model(model_args, path):
     m = model.Ensemble(**model_args)
@@ -216,6 +222,8 @@ def load_model(model_args, path):
     #  doing feature extract method, we will only update the parameters
     #  that we have just initialized, i.e. the parameters with requires_grad
     #  is True.
+
+
 def trainable_params(model, feature_extract):
     params_to_update = model.parameters()
     print("Params to learn:")
