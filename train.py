@@ -183,8 +183,8 @@ def test_model(model, dataloader, criterion, optimizer):
     time_elapsed = time.time() - since
     print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
-    metric_true = np.concatenate(metric_true, 0)
-    metric_pred = np.concatenate(metric_pred, 0)
+    metric_true = torch.cat(metric_true, 0).cpu()
+    metric_pred = torch.cat(metric_pred, 0).cpu()
 
     print(classification_report(metric_true, metric_pred, target_names=TARGET_NAMES))
     results = classification_report(metric_true, metric_pred, target_names=TARGET_NAMES, output_dict=True)
