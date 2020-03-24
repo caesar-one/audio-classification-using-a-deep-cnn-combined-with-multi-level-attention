@@ -74,7 +74,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, patienc
 
             # Iterate over data.
             for inputs, labels in tqdm(dataloaders[phase]):
-                inputs = inputs.to(device)
+                inputs = inputs.to(device).float()
                 labels = labels.to(device).long()
 
                 # zero the parameter gradients
@@ -233,13 +233,26 @@ def trainable_params(model, feature_extract):
 
 
 if __name__ == "__main__":
+    T = 4
 
-    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
+    data_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/'
+    postfix = 'vggish_native_4'
+
+    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load(
+        load_saved=True,
+        save=False,
+        path=data_path,
+        save_filename='audio_data_' + postfix + '.pkl',
+    )
+
+    batch_size = 64
+    feature_extract = True
+    lr = 0.001
 
     dataloaders_dict = {
-        "train": DataLoader(list(zip(X_train, y_train)), batch_size=BATCH_SIZE, shuffle=True),
-        "val": DataLoader(list(zip(X_val, y_val)), batch_size=BATCH_SIZE, shuffle=False),
-        "test": DataLoader(list(zip(X_test, y_test)), batch_size=BATCH_SIZE, shuffle=False)
+        "train": DataLoader(list(zip(X_train, y_train)), batch_size=batch_size, shuffle=True),
+        "val": DataLoader(list(zip(X_val, y_val)), batch_size=batch_size, shuffle=False),
+        "test": DataLoader(list(zip(X_test, y_test)), batch_size=batch_size, shuffle=False)
     }
 
     input_conf = "repeat"
@@ -248,46 +261,49 @@ if __name__ == "__main__":
 
     cnn_conf = {
         "cnn_type": "vggish",
-        "num_classes": 10,
+        "num_classes": 128,
         "use_pretrained": True,
-        "just_bottleneck":False,
+        "just_bottlenecks": True,
         "cnn_trainable": False,
         "first_cnn_layer_trainable": False,
-        "in_channels": 3
-    }
+        "in_channels": 3}
+
+    save_model_path = data_path + 'model_' + postfix + '' + '.pkl'
 
     model_ft = model.Ensemble(input_conf, cnn_conf, model_conf, device)
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
 
+    # Gather the parameters to be optimized/updated in this run. If we are
+    #  finetuning we will be updating all parameters. However, if we are
+    #  doing feature extract method, we will only update the parameters
+    #  that we have just initialized, i.e. the parameters with requires_grad
+    #  is True.
+    params_to_update = model_ft.parameters()
+    print("Params to learn:")
+    if feature_extract:
+        params_to_update = []
+        for name, param in model_ft.named_parameters():
+            if param.requires_grad == True:
+                params_to_update.append(param)
+                print("\t", name)
+    else:
+        for name, param in model_ft.named_parameters():
+            if param.requires_grad == True:
+                print("\t", name)
+
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.Adam(trainable_params(model_ft, feature_extract=FEATURE_EXTRACT), lr=LR)
+    optimizer_ft = optim.Adam(params_to_update, lr=lr)
 
     # Setup the loss fxn
     criterion = nn.CrossEntropyLoss()
 
+    ###############################################################
+
     # Train and evaluate
-    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=NUM_EPOCHS)
-
-    cnn_conf_scratch = {
-        "cnn_type": "vggish",
-        "num_classes": 10,
-        "use_pretrained": False,
-        "just_bottleneck":False,
-        "cnn_trainable": False,
-        "first_cnn_layer_trainable": False,
-        "in_channels": 3
-    }
-
-    # Initialize the non-pretrained version of the model used for this run
-    scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf, device)
-    scratch_model = scratch_model.to(device)
-
-    scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=LR)
-    scratch_criterion = nn.CrossEntropyLoss()
-    _, scratch_hist, _ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer,
-                                     num_epochs=NUM_EPOCHS)
+    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft,
+                                           save_model_path=save_model_path, resume=False)
 
     # Plot the training curves of validation accuracy vs. number
     #  of training epochs for the transfer learning method and
@@ -296,13 +312,14 @@ if __name__ == "__main__":
     # shist = []
 
     ohist = [h.cpu().numpy() for h in hist]
-    shist = [h.cpu().numpy() for h in scratch_hist]
+    # shist = [h.cpu().numpy() for h in scratch_hist]
 
+    print(NUM_EPOCHS, len(ohist))
     plt.title("Validation Accuracy vs. Number of Training Epochs")
     plt.xlabel("Training Epochs")
     plt.ylabel("Validation Accuracy")
-    plt.plot(range(1, len(ohist) + 1), ohist, label="Pretrained")
-    plt.plot(range(1, len(shist) + 1), shist, label="Scratch")
+    plt.plot(range(1, 12 + 1), ohist, label="Pretrained")
+    # plt.plot(range(1, NUM_EPOCHS + 1), shist, label="Scratch")
     plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
     plt.ylim((0, 1.))
     plt.xticks(np.arange(1, NUM_EPOCHS + 1, 1.0))

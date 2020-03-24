@@ -85,7 +85,7 @@ class CnnFlatten(nn.Module):
         if self.cnn_type == "resnet":
             x = torch.flatten(x, 1)  # TODO check second parameter (it should be correct considering batches)
         elif self.cnn_type == "vggish":
-            x = self.features(x)
+            #x = self.features(x)
             # Transpose the output from features to
             # remain compatible with vggish embeddings
             x = torch.transpose(x, 1, 3)
