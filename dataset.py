@@ -212,37 +212,57 @@ def load(save: bool = True,
         else:
             raise Exception("CNN type is not valid.")
 
-    #X_train, X_val, X_test, y_train, y_val, y_test = [], [], [], [], [], []
-    X_train = dataset.create_dataset("X_train", shape=(len(wav_paths_train),T,len(features),y_size,x_size))
-    y_train = dataset.create_dataset("y_train", shape=(len(wav_paths_train),T,len(features),y_size,x_size))
-    X_val = dataset.create_dataset("X_val", shape=(len(wav_paths_val),T,len(features),y_size,x_size))
-    y_val = dataset.create_dataset("y_val", shape=(len(wav_paths_val),T,len(features),y_size,x_size))
-    X_test = dataset.create_dataset("X_test", shape=(len(wav_paths_test),T,len(features),y_size,x_size))
-    y_test = dataset.create_dataset("y_test", shape=(len(wav_paths_test),T,len(features),y_size,x_size))
-    for paths, setname in zip([wav_paths_train, wav_paths_val, wav_paths_test], ["train", "val", "test"]):
-        counter = 0
-        for wav_path in tqdm(paths[:BATCH_SIZE] if debug else paths,
-                             desc=f"Converting {setname} samples in spectrograms"):
-            # Create spectrogram and split into frames
-            spec = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
-            # Split the spectrogram
-            frames = split(spec, T, x_size, y_size, overlap)
-            # Add a new axis for the channel dimension
-            for i in range(len(frames)):
-                frames[i] = frames[i][np.newaxis, :, :]
-            # Append each frames list to their respective set
-            audio_filename = wav_path.split("/")[-1]
+        mnemonic = f"{cnn_type}{'' if use_librosa else '_native'}_{T}{'_s' if overlap else ''}"
 
-            if setname == "train":
-                X_train[counter] = frames
-                y_train[counter] = int(name2class[audio_filename])
-            elif setname == "val":
-                X_val[counter] = frames
-                y_val[counter] = int(name2class[audio_filename])
-            else:
-                X_test[counter] = frames
-                y_test[counter] = int(name2class[audio_filename])
-            counter += 1
+        X_train_shape = (len(wav_paths_train), T, len(features), y_size, x_size)
+        y_train_shape = (len(wav_paths_train), T, len(features), y_size, x_size)
+        X_val_shape = (len(wav_paths_val), T, len(features), y_size, x_size)
+        y_val_shape = (len(wav_paths_val), T, len(features), y_size, x_size)
+        X_test_shape = (len(wav_paths_test), T, len(features), y_size, x_size)
+        y_test_shape = (len(wav_paths_test), T, len(features), y_size, x_size)
+        if filename.split(".")[-1] in ["hdf5","h5"]:
+            audio_data = h5py.File(filename, "w-")
+            audio_data.create_group(mnemonic)
+            dataset = audio_data[mnemonic]
+            X_train = dataset.create_dataset("X_train", shape=(len(wav_paths_train), T, len(features), y_size, x_size))
+            y_train = dataset.create_dataset("y_train", shape=(len(wav_paths_train),))
+            X_val = dataset.create_dataset("X_val", shape=(len(wav_paths_val), T, len(features), y_size, x_size))
+            y_val = dataset.create_dataset("y_val", shape=(len(wav_paths_val),))
+            X_test = dataset.create_dataset("X_test", shape=(len(wav_paths_test), T, len(features), y_size, x_size))
+            y_test = dataset.create_dataset("y_test", shape=(len(wav_paths_test),))
+        else:
+            X_train = np.zeros(X_train_shape)
+            y_train = np.zeros(y_train_shape)
+            X_val = np.zeros(X_val_shape)
+            y_val = np.zeros(y_val_shape)
+            X_test = np.zeros(X_test_shape)
+            y_test = np.zeros(y_test_shape)
+
+        _min, _max = np.float('inf'), np.float('-inf')
+        for paths, setname in zip([wav_paths_train, wav_paths_val, wav_paths_test], ["train", "val", "test"]):
+            for wav_path in tqdm(paths[:BATCH_SIZE] if debug else paths,
+                                 desc=f"Converting {setname} samples in spectrograms"):
+                counter = 0
+                # Create spectrogram and split into frames
+                spec = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
+                # Split the spectrogram
+                frames = split(spec, T, x_size, y_size, overlap)
+                # Add a new axis for the channel dimension
+                for i in range(len(frames)):
+                    frames[i] = frames[i][np.newaxis, :, :]
+                # Append each frames list to their respective set
+                audio_filename = wav_path.split("/")[-1]
+                if setname == "train":
+                    X_train[counter] = frames
+                    y_train[counter] = int(name2class[audio_filename])
+                elif setname == "val":
+                    X_val[counter] = frames
+                    y_val[counter] = int(name2class[audio_filename])
+                else:
+                    X_test[counter] = frames
+                    y_test[counter] = int(name2class[audio_filename])
+                _min, _max = np.min([_min, np.min(frames)]), np.max([_max, np.max(frames)])
+                counter += 1
 
         # Convert spectrogram lists into numpy arrays
         #X_train = np.array(X_train)
@@ -275,6 +295,133 @@ def load(save: bool = True,
                     pickle.dump((X_train, X_val, X_test, y_train, y_val, y_test), f, protocol=4)
 
     return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def load_hdf5(save: bool = True,
+              load_saved: bool = True,
+              path: str = "",
+              save_filename: str = "audio_data.h5",
+              cnn_type: str = "vggish",
+              use_librosa: bool = False,
+              overlap: bool = True,
+              debug: bool = False,
+              features: tuple = ("spectrogram",) # "mfcc", "crp"),  # TODO implement this
+              ) -> str:
+    # if save_filename.split(".")[-1] in ["hdf5","h5"]:
+    audio_data = h5py.File(path + save_filename, "w-")
+    group_name = f"{cnn_type}_{T}{'_s' if overlap else ''}"
+    audio_data.create_group(group_name)
+    dataset = audio_data[group_name]
+    if overlap and T < 4:
+        raise Exception('Number of slots must be >= 4')
+    if not overlap and cnn_type == "vggish" and not use_librosa and T != 4:
+        raise Exception('This combination of params needs T = 4')
+
+    # Force to use librosa for resnet
+    if cnn_type == "resnet" and not use_librosa:
+        print('use_librosa forced to True')
+        use_librosa = True
+
+    # DATASET CREATION
+    # We split the data into 3 sets: train (~60%), val (~20%), test (~20%).
+
+    # Assign folders to the appropriate set
+    wav_paths = glob(path + DATASET_PATH + "**/*.wav", recursive=True)
+    wav_paths_train, wav_paths_val, wav_paths_test = [], [], []
+    for p in wav_paths:
+        if p.split("/")[-2] in ["fold1", "fold2"]:
+            wav_paths_test.append(p)
+        elif p.split("/")[-2] in ["fold3", "fold4"]:
+            wav_paths_val.append(p)
+        else:
+            wav_paths_train.append(p)
+
+    # Load the metadata
+    metadata = pd.read_csv(path + METADATA_PATH)
+    # Create a mapping from audio clip names to their respective label IDs
+    name2class = dict(zip(metadata["slice_file_name"], metadata["classID"]))  # TODO check this!!!!!
+
+    if cnn_type == "vggish":
+        sr = SR_VGGISH
+        samples_num = SAMPLES_NUM_VGGISH
+        s_shape = S_VGGISH_SHAPE
+        x_size = s_shape[0]
+        y_size = s_shape[1]
+    elif cnn_type == "resnet":
+        sr = SR_RESNET
+        samples_num = SAMPLES_NUM_RESNET
+        s_shape = S_RESNET_SHAPE
+        x_size = s_shape[1]
+        y_size = s_shape[0]
+    else:
+        raise Exception("CNN type is not valid.")
+
+    # X_train, X_val, X_test, y_train, y_val, y_test = [], [], [], [], [], []
+    if debug: wav_paths_test, wav_paths_train, wav_paths_val = wav_paths_test[:8], wav_paths_train[:8], wav_paths_val[:8]
+    X_train = dataset.create_dataset("X_train", shape=(len(wav_paths_train), T, len(features), y_size, x_size))
+    y_train = dataset.create_dataset("y_train", shape=(len(wav_paths_train),))
+    X_val = dataset.create_dataset("X_val", shape=(len(wav_paths_val), T, len(features), y_size, x_size))
+    y_val = dataset.create_dataset("y_val", shape=(len(wav_paths_val),))
+    X_test = dataset.create_dataset("X_test", shape=(len(wav_paths_test), T, len(features), y_size, x_size))
+    y_test = dataset.create_dataset("y_test", shape=(len(wav_paths_test),))
+
+    _min, _max = np.float('inf'), np.float('-inf')
+    for paths, setname in zip([wav_paths_train, wav_paths_val, wav_paths_test], ["train", "val", "test"]):
+        counter = 0
+        for wav_path in tqdm(paths, desc=f"Converting {setname} samples in spectrograms"):
+            # Create spectrogram and split into frames
+            try:
+                spec = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
+            except RuntimeError:
+                print(f"{wav_path} was not read (Runtime error)")
+                continue
+            except OSError:
+                print(f"{wav_path} was not read (OS error")
+                continue
+            # Split the spectrogram
+            frames = split(spec, T, x_size, y_size, overlap)
+            # Add a new axis for the channel dimension
+            frames = frames[:, np.newaxis, :, :]
+            # Append each frames list to their respective set
+            audio_filename = wav_path.split("/")[-1]
+            if setname == "train":
+                X_train[counter] = frames
+                y_train[counter] = int(name2class[audio_filename])
+            elif setname == "val":
+                X_val[counter] = frames
+                y_val[counter] = int(name2class[audio_filename])
+            else:
+                X_test[counter] = frames
+                y_test[counter] = int(name2class[audio_filename])
+            _min, _max = np.min([_min, np.min(frames)]), np.max([_max, np.max(frames)])
+            counter += 1
+
+    # Convert spectrogram lists into numpy arrays
+    # X_train = np.array(X_train)
+    # y_train = np.array(y_train)
+    # X_val = np.array(X_val)
+    # y_val = np.array(y_val)
+    # X_test = np.array(X_test)
+    # y_test = np.array(y_test)
+
+    #X_tot = np.concatenate([X_train, X_val, X_test])
+
+    # Normalize the dataset in between [0,1]
+    #_min = np.min(X_tot)
+    #_max = np.max(X_tot)
+    #X_train = normalize(X_train, _min, _max)
+    #X_val = normalize(X_val, _min, _max)
+    #X_test = normalize(X_test, _min, _max)
+
+    # Plot frames for manual check on the file fold10/100795-3-0-0.wav (can be removed)
+    if debug:
+        for i in range(T):
+            plot_spec(X_train[5, i, 0], sr)
+
+    audio_data.close()
+
+    #return X_train, X_val, X_test, y_train, y_val, y_test
+    return path + save_filename
 
 
 def overlapping_split(spec: np.ndarray, num_frames: int, frame_length: int) -> np.ndarray:
