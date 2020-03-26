@@ -25,7 +25,6 @@ import h5py
 from params import *
 from torchvggish.vggish_input import wavfile_to_examples
 
-
 '''
 This module is used to load the dataset.
 
@@ -40,16 +39,15 @@ def normalize(d: np.ndarray, _min: float, _max: float) -> np.ndarray:
     return (d - _min) / (_max - _min)
 
 
-def load(save: bool = True,
-         load_saved: bool = True,
-         path: str = "",
-         save_filename: str = "audio_data.pkl",
-         cnn_type: str = "vggish",
-         use_librosa: bool = False,
-         overlap: bool = True,
-         debug: bool = False,
-         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-
+def loadbak(save: bool = True,
+            load_saved: bool = True,
+            path: str = "",
+            filename: str = "audio_data.pkl",
+            cnn_type: str = "vggish",
+            use_librosa: bool = False,
+            overlap: bool = True,
+            debug: bool = False,
+            ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     if overlap and T < 4:
         raise Exception('Number of slots must be >= 4')
     if not overlap and cnn_type == "vggish" and not use_librosa and T != 4:
@@ -60,9 +58,9 @@ def load(save: bool = True,
         print('use_librosa forced to True')
         use_librosa = True
 
-    if path + save_filename in glob(path + "*.pkl") and load_saved:
+    if path + filename in glob(path + "*.pkl") and load_saved:
         # Load the dataset
-        with open(path + save_filename, "rb") as f:
+        with open(path + filename, "rb") as f:
             (X_train, X_val, X_test, y_train, y_val, y_test) = pickle.load(f)
     else:
         # DATASET CREATION
@@ -145,6 +143,7 @@ def load(save: bool = True,
             for i in range(T):
                 plot_spec(X_train[5, i, 0], sr)
 
+        save_filename = f"audio_data_{cnn_type}{'' if use_librosa else '_native'}_{T}{'_s' if overlap else ''}"
         if save:
             # Save the dataset
             with open(path + save_filename, "wb") as f:
@@ -154,65 +153,64 @@ def load(save: bool = True,
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 
-def load_hdf5(save: bool = True,
+def load(save: bool = True,
          load_saved: bool = True,
          path: str = "",
-         save_filename: str = "audio_data.pkl",
+         filename: str = "",
          cnn_type: str = "vggish",
          use_librosa: bool = False,
          overlap: bool = True,
          debug: bool = False,
-         features: tuple = ("spectrogram", "mfcc", "crp"), #TODO implement this
+         features: Tuple[str] = ("spectrogram", "mfcc", "crp")
          ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
-    #if save_filename.split(".")[-1] in ["hdf5","h5"]:
-    audio_data = h5py.File(save_filename, "w-")
-    group_name = f"{cnn_type}_{T}{'_s' if overlap else ''}"
-    audio_data.create_group(group_name)
-    dataset = audio_data[group_name]
-    if overlap and T < 4:
-        raise Exception('Number of slots must be >= 4')
-    if not overlap and cnn_type == "vggish" and not use_librosa and T != 4:
-        raise Exception('This combination of params needs T = 4')
-
+    if overlap and T < MAX_SECONDS:
+        raise Exception(f'Number of slots must be >= {MAX_SECONDS}')
+    if not overlap and cnn_type == "vggish" and not use_librosa and T != MAX_SECONDS:
+        raise Exception(f'This combination of params needs T = {MAX_SECONDS}')
     # Force to use librosa for resnet
     if cnn_type == "resnet" and not use_librosa:
         print('use_librosa forced to True')
         use_librosa = True
 
-    # DATASET CREATION
-    # We split the data into 3 sets: train (~60%), val (~20%), test (~20%).
-
-    # Assign folders to the appropriate set
-    wav_paths = glob(path + DATASET_PATH + "**/*.wav", recursive=True)
-    wav_paths_train, wav_paths_val, wav_paths_test = [], [], []
-    for p in wav_paths:
-        if p.split("/")[-2] in ["fold1", "fold2"]:
-            wav_paths_test.append(p)
-        elif p.split("/")[-2] in ["fold3", "fold4"]:
-            wav_paths_val.append(p)
-        else:
-            wav_paths_train.append(p)
-
-    # Load the metadata
-    metadata = pd.read_csv(path + METADATA_PATH)
-    # Create a mapping from audio clip names to their respective label IDs
-    name2class = dict(zip(metadata["slice_file_name"], metadata["classID"])) #TODO check this!!!!!
-
-    if cnn_type == "vggish":
-        sr = SR_VGGISH
-        samples_num = SAMPLES_NUM_VGGISH
-        s_shape = S_VGGISH_SHAPE
-        x_size = s_shape[0]
-        y_size = s_shape[1]
-    elif cnn_type == "resnet":
-        sr = SR_RESNET
-        samples_num = SAMPLES_NUM_RESNET
-        s_shape = S_RESNET_SHAPE
-        x_size = s_shape[1]
-        y_size = s_shape[0]
+    if path + filename in glob(path + "*.pkl") and load_saved:
+        # Load the dataset
+        with open(path + filename, "rb") as f:
+            (X_train, X_val, X_test, y_train, y_val, y_test) = pickle.load(f)
     else:
-        raise Exception("CNN type is not valid.")
+        # DATASET CREATION
+        # We split the data into 3 sets: train (~60%), val (~20%), test (~20%).
+
+        # Assign folders to the appropriate set
+        wav_paths = glob(path + DATASET_PATH + "**/*.wav", recursive=True)
+        wav_paths_train, wav_paths_val, wav_paths_test = [], [], []
+        for p in wav_paths:
+            if p.split("/")[-2] in ["fold1", "fold2"]:
+                wav_paths_test.append(p)
+            elif p.split("/")[-2] in ["fold3", "fold4"]:
+                wav_paths_val.append(p)
+            else:
+                wav_paths_train.append(p)
+
+        # Load the metadata
+        metadata = pd.read_csv(path + METADATA_PATH)
+        # Create a mapping from audio clip names to their respective label IDs
+        name2class = dict(zip(metadata["slice_file_name"], metadata["classID"]))
+
+        if cnn_type == "vggish":
+            sr = SR_VGGISH
+            samples_num = SAMPLES_NUM_VGGISH
+            s_shape = S_VGGISH_SHAPE
+            x_size = s_shape[0]
+            y_size = s_shape[1]
+        elif cnn_type == "resnet":
+            sr = SR_RESNET
+            samples_num = SAMPLES_NUM_RESNET
+            s_shape = S_RESNET_SHAPE
+            x_size = s_shape[1]
+            y_size = s_shape[0]
+        else:
+            raise Exception("CNN type is not valid.")
 
     #X_train, X_val, X_test, y_train, y_val, y_test = [], [], [], [], [], []
     X_train = dataset.create_dataset("X_train", shape=(len(wav_paths_train),T,len(features),y_size,x_size))
@@ -246,33 +244,35 @@ def load_hdf5(save: bool = True,
                 y_test[counter] = int(name2class[audio_filename])
             counter += 1
 
-    # Convert spectrogram lists into numpy arrays
-    #X_train = np.array(X_train)
-    #y_train = np.array(y_train)
-    #X_val = np.array(X_val)
-    #y_val = np.array(y_val)
-    #X_test = np.array(X_test)
-    #y_test = np.array(y_test)
+        # Convert spectrogram lists into numpy arrays
+        #X_train = np.array(X_train)
+        #y_train = np.array(y_train)
+        #X_val = np.array(X_val)
+        #y_val = np.array(y_val)
+        #X_test = np.array(X_test)
+        #y_test = np.array(y_test)
 
-    X_tot = np.concatenate([X_train, X_val, X_test])
+        #X_tot = np.concatenate([X_train, X_val, X_test])
 
-    # Normalize the dataset in between [0,1]
-    _min = np.min(X_tot)
-    _max = np.max(X_tot)
-    X_train = normalize(X_train, _min, _max)
-    X_val = normalize(X_val, _min, _max)
-    X_test = normalize(X_test, _min, _max)
+        # Normalize the dataset in between [0,1]
+        #_min = np.min(X_tot)
+        #_max = np.max(X_tot)
+        X_train = normalize(X_train, _min, _max)
+        X_val = normalize(X_val, _min, _max)
+        X_test = normalize(X_test, _min, _max)
 
-    # Plot frames for manual check on the file fold10/100795-3-0-0.wav (can be removed)
-    if debug:
-        for i in range(T):
-            plot_spec(X_train[5, i, 0], sr)
+        # Plot frames for manual check on the file fold10/100795-3-0-0.wav (can be removed)
+        if debug:
+            for i in range(T):
+                plot_spec(X_train[5, i, 0], sr)
 
-    if save:
-        # Save the dataset
-        with open(path + save_filename, "wb") as f:
-            # protocol=4 saves correctly variables of size more than 4 GB
-            pickle.dump((X_train, X_val, X_test, y_train, y_val, y_test), f, protocol=4)
+        save_filename = f"audio_data_{mnemonic}"
+        if save:
+            if not filename.split(".")[-1] in ["hdf5", "h5"]:
+                # Save the dataset
+                with open(path + save_filename, "wb") as f:
+                    # protocol=4 saves correctly variables of size more than 4 GB
+                    pickle.dump((X_train, X_val, X_test, y_train, y_val, y_test), f, protocol=4)
 
     return X_train, X_val, X_test, y_train, y_val, y_test
 
@@ -289,7 +289,7 @@ def overlapping_split(spec: np.ndarray, num_frames: int, frame_length: int) -> n
     '''
 
     return np.array([spec[:, i: i + frame_length]
-            for i in range(0, spec.shape[1], step_length // (num_frames - 1))][:num_frames])
+                     for i in range(0, spec.shape[1], step_length // (num_frames - 1))][:num_frames])
 
 
 def contiguous_split(spec: np.ndarray, num_frames: int, frame_length: int) -> np.ndarray:
@@ -300,7 +300,7 @@ def contiguous_split(spec: np.ndarray, num_frames: int, frame_length: int) -> np
             frames[i] = frames[i][:, :-2]
     '''
     return np.array([spec[::, i: i + frame_length] for i in
-             range(0, spec.shape[1], frame_length)][:num_frames])
+                     range(0, spec.shape[1], frame_length)][:num_frames])
 
 
 def split(spec: np.ndarray, num_frames: int, x_size: int, y_size: int, overlap: bool):
@@ -321,7 +321,7 @@ def split(spec: np.ndarray, num_frames: int, x_size: int, y_size: int, overlap: 
 
     # Check shape and add a new axis in position 0 (this will be the channel axis)
     for i in range(frames.shape[0]):
-        assert frames[i].shape == (y_size, x_size),\
+        assert frames[i].shape == (y_size, x_size), \
             "{} should be ({},{}); instead is ({},{})".format(i, y_size, x_size, frames[i].shape[0], frames[i].shape[1])
 
     return frames
@@ -394,32 +394,29 @@ def plot_spec(spec: np.ndarray, sr: int) -> None:
 
 
 if __name__ == '__main__':
-    '''
+
     # GENERATE DATASET
 
     data_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/'
-    postfix = 'vggish_native_4_nooverlap.pkl'
-
+    #postfix = 'vggish_native_4_nooverlap.pkl'
 
     # params
-    cnn_type = 'vggish'
-    wav_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/UrbanSound8K/audio/fold1/7061-6-0-0.wav'
-    overlap = False
-    T = 4
-    use_librosa = False
+    cnn_type = 'resnet'
+    #wav_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/UrbanSound8K/audio/fold1/7061-6-0-0.wav'
+    overlap = True
+    T = 10
+    use_librosa = True
 
-
-    X_train, X_val, X_test, y_train, y_val, y_test = load(
+    p = load_hdf5(
         load_saved=False,
         save=True,
+        save_filename='audio_data2.h5',
         path=data_path,
-        save_filename='audio_data_' + postfix,
         cnn_type=cnn_type,
         overlap=overlap,
         use_librosa=use_librosa,
         debug=False
     )
-    '''
 
     '''
 
@@ -470,6 +467,8 @@ if __name__ == '__main__':
     for t in theirs:
         plot_spec(t[0], sr)
     '''
+
+    '''
     wav = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/UrbanSound8K/audio/fold1/7061-6-0-0.wav'
     spec1 = create_spec(
         wav,
@@ -498,23 +497,21 @@ if __name__ == '__main__':
     plot_spec(spec2l, 16000)
     plot_spec(spec2h, 16000)
 
-    spec1 = split(spec1, 10,224,224,True )
+    spec1 = split(spec1, 10, 224, 224, True)
     spec2h = split(spec2h, 10, 96, 64, True)
     spec2l = split(spec2l, 10, 96, 64, True)
 
-    #specn = wavfile_to_examples(wav, return_tensor=False)[0]
-    #specn=normalize(specn, min, max)
-    #plot_spec(specn, 16000)
+    # specn = wavfile_to_examples(wav, return_tensor=False)[0]
+    # specn=normalize(specn, min, max)
+    # plot_spec(specn, 16000)
 
+    # spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
+    # spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
+    # spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
+    # plot_spec(np.spec1_flat, 22050)
+    # plot_spec(np.concatenate(spec2l[0]), 16000)
+    # plot_spec(np.concatenate(spec2h), 16000)
 
-    #spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
-    #spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
-    #spec1_flat = np.swapaxes(spec1, 0, 1).reshape((224, -1))
-    #plot_spec(np.spec1_flat, 22050)
-    #plot_spec(np.concatenate(spec2l[0]), 16000)
-    #plot_spec(np.concatenate(spec2h), 16000)
-    
     for frame in spec2h:
         plot_spec(frame, 22050)
-
-
+    '''
