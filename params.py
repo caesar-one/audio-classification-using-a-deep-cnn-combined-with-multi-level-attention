@@ -7,10 +7,11 @@ METADATA_PATH = "UrbanSound8K/metadata/UrbanSound8K.csv"
 
 # We know in advance that all audio clips are sampled at 22050 kHz, so we fixed the number of samples per clip at 88200,
 # which correspond to 4 seconds.
+MAX_SECONDS = 4
 SR_VGGISH = 16_000
-SAMPLES_NUM_VGGISH = SR_VGGISH * 4
+SAMPLES_NUM_VGGISH = SR_VGGISH * MAX_SECONDS
 SR_RESNET = 22_050
-SAMPLES_NUM_RESNET = SR_RESNET * 4
+SAMPLES_NUM_RESNET = SR_RESNET * MAX_SECONDS
 
 #[x[1] for x in sorted(list(set([tuple(x) for x in pd.read_csv(METADATA_PATH)[["classID","class"]].to_numpy().tolist()])))]
 TARGET_NAMES = ['air_conditioner', 'car_horn', 'children_playing', 'dog_bark', 'drilling',
