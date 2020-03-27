@@ -384,6 +384,7 @@ def load_hdf5(save: bool = True,
                 if use_librosa:
                     # Load the audio clip stored at *wav_path* in an audio array
                     audio_array, _ = librosa.load(wav_path, sr=sr)
+                    downsampled_audio_array, _ = librosa.load(wav_path, sr=sr//10)
                     # Make sure that all audio arrays are of the same length *samples_num*
                     # (cut if larger, zero-fill if smaller)
                     audio_array = audio_array[:samples_num]
@@ -393,7 +394,9 @@ def load_hdf5(save: bool = True,
                     audio_array, _ = sf.read(wav_path, dtype='int16')
                     assert audio_array.dtype == np.int16, 'Bad sample type: %r' % audio_array.dtype
                     audio_array = audio_array / 32768.0  # Convert to [-1.0, +1.0]
-                spec = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
+                spec = create_spec(audio_array, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
+                mfcc = create_mfcc(S=spec, sr=sr, y_size=y_size)
+                crp = create_crp(downsampled_audio_array)
             except RuntimeError:
                 print(f"{wav_path} was not read (Runtime error)")
                 continue
