@@ -44,7 +44,6 @@ from dataset import load
 X_train, X_val, X_test, y_train, y_val, y_test = load()
 '''
 
-
 def normalize(d: np.ndarray, _min: float, _max: float) -> np.ndarray:
     return (d - _min) / (_max - _min)
 

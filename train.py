@@ -17,6 +17,7 @@ import torch.optim as optim
 import numpy as np
 import torch
 from sklearn.metrics import classification_report
+from torch.utils.data import Dataset
 
 import matplotlib.pyplot as plt
 from glob import glob
@@ -27,6 +28,18 @@ from params import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+class H5Loader(Dataset):
+
+    def __init__(self, X_desc, y_desc):
+        self.X_desc = X_desc
+        self.y_desc = y_desc
+
+    def __len__(self):
+        return self.y_desc.shape[0]
+
+    def __getitem__(self, idx):
+        return (self.X_desc[idx], self.y_desc[idx])
 
 # if patience=None the early stopping mechanism will not be active. Otherwise, if patience=N training will be stopped
 #       if there will not be improvements for N epochs (on the validation set). If save_model_path=None, the model won't
