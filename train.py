@@ -252,10 +252,18 @@ if __name__ == "__main__":
 
     X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
 
+    '''
     dataloaders_dict = {
         "train": DataLoader(list(zip(X_train, y_train)), batch_size=BATCH_SIZE, shuffle=True),
         "val": DataLoader(list(zip(X_val, y_val)), batch_size=BATCH_SIZE, shuffle=False),
         "test": DataLoader(list(zip(X_test, y_test)), batch_size=BATCH_SIZE, shuffle=False)
+    }
+    '''
+
+    dataloaders_dict = {
+        "train": DataLoader(H5Loader(X_train, y_train), batch_size=BATCH_SIZE, shuffle=True, num_workers=4),
+        "val": DataLoader(H5Loader(X_val, y_val), batch_size=BATCH_SIZE, shuffle=False, num_workers=4),
+        "test": DataLoader(H5Loader(X_test, y_test), batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
     }
 
     input_conf = "repeat"
