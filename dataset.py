@@ -17,13 +17,23 @@ import numpy as np
 import pandas as pd
 import librosa
 import librosa.display
+import soundfile as sf
+
+from pyrqa.computation import RPComputation
+from pyrqa.image_generator import ImageGenerator
+from pyrqa.analysis_type import Cross
+from pyrqa.time_series import TimeSeries
+from pyrqa.settings import Settings
+from pyrqa.neighbourhood import FixedRadius
+from pyrqa.metric import EuclideanMetric
+
 from glob import glob
 import pickle
 import matplotlib.pyplot as plt
 import h5py
 
 from params import *
-from torchvggish.vggish_input import wavfile_to_examples
+from torchvggish.vggish_input import waveform_to_examples
 
 '''
 This module is used to load the dataset.
@@ -371,6 +381,18 @@ def load_hdf5(save: bool = True,
         for wav_path in tqdm(paths, desc=f"Converting {setname} samples in spectrograms"):
             # Create spectrogram and split into frames
             try:
+                if use_librosa:
+                    # Load the audio clip stored at *wav_path* in an audio array
+                    audio_array, _ = librosa.load(wav_path, sr=sr)
+                    # Make sure that all audio arrays are of the same length *samples_num*
+                    # (cut if larger, zero-fill if smaller)
+                    audio_array = audio_array[:samples_num]
+                    reshaped_array = np.zeros((samples_num,))
+                    reshaped_array[:audio_array.shape[0]] = audio_array
+                else:
+                    audio_array, _ = sf.read(wav_path, dtype='int16')
+                    assert audio_array.dtype == np.int16, 'Bad sample type: %r' % audio_array.dtype
+                    audio_array = audio_array / 32768.0  # Convert to [-1.0, +1.0]
                 spec = create_spec(wav_path, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
             except RuntimeError:
                 print(f"{wav_path} was not read (Runtime error)")
@@ -473,8 +495,41 @@ def split(spec: np.ndarray, num_frames: int, x_size: int, y_size: int, overlap: 
 
     return frames
 
+def create_mfcc(S: np.ndarray,
+                sr: int,
+                y_size: int,
+                ) -> np.ndarray:
+    """
+    :param S: the audio filename
+    :param sr: sampling rate,
+    :param y_size: number of total samples in the audio array (required for cutting/padding)
+    :return: the spectrogram related to the audio data contained in *data*, np.ndarray (y_size, 4 seconds)
+    """
 
-def create_spec(wav_path: str,
+    return librosa.feature.mfcc(S=S, sr=sr, n_mfcc=y_size)
+
+def create_crp(audio_array):
+    #data_points_x = [0.9, 0.1, 0.2, 0.3, 0.5, 1.7, 0.4, 0.8, 1.5]
+    #time_series_x = TimeSeries(data_points_x,
+    #                           embedding_dimension=2,
+    #                           time_delay=1)
+    #data_points_y = [0.3, 1.3, 0.6, 0.2, 1.1, 1.9, 1.3, 0.4, 0.7, 0.9, 1.6]
+    #time_series_y = TimeSeries(data_points_y,
+    #                           embedding_dimension=2,
+    #                           time_delay=2)
+    #time_series = (time_series_x,
+    #               time_series_y)
+    time_series = TimeSeries(audio_array, embedding_dimension=2, time_delay=1)
+    settings = Settings(time_series,
+                        analysis_type=Cross,
+                        neighbourhood=FixedRadius(0.73),
+                        similarity_measure=EuclideanMetric,
+                        theiler_corrector=0)
+    computation = RPComputation.create(settings)
+    result = computation.run()
+    ImageGenerator.save_recurrence_plot(result.recurrence_matrix_reverse, 'cross_recurrence_plot.png')
+
+def create_spec(audio_array: np.ndarray,
                 cnn_type: str,
                 sr: int,
                 samples_num: int,
@@ -497,21 +552,14 @@ def create_spec(wav_path: str,
     """
 
     if use_librosa:
-        # Load the audio clip stored at *wav_path* in an audio array
-        audio_array, _ = librosa.load(wav_path, sr=sr)
-        # Make sure that all audio arrays are of the same length *samples_num*
-        # (cut if larger, zero-fill if smaller)
-        audio_array = audio_array[:samples_num]
-        reshaped_array = np.zeros((samples_num,))
-        reshaped_array[:audio_array.shape[0]] = audio_array
         # Compute the spectrogram of the reshaped array.
         # The granularity on frequency (n_mels) axis is y_size
         # The granularity on time axis (hop_length) depends on whether we will divide the result in frames or not
         if cnn_type == "vggish":
-            spec = librosa.feature.melspectrogram(reshaped_array, sr=sr, n_mels=64, hop_length=160, center=False,
+            spec = librosa.feature.melspectrogram(audio_array, sr=sr, n_mels=64, hop_length=160, center=False,
                                                   htk=True, fmin=125, fmax=7500)
         elif cnn_type == "resnet":
-            spec = librosa.feature.melspectrogram(reshaped_array, sr=sr, n_mels=y_size,
+            spec = librosa.feature.melspectrogram(audio_array, sr=sr, n_mels=y_size,
                                                   hop_length=samples_num // (x_size * 4) if overlap
                                                   else samples_num // (x_size * T))
         else:
@@ -523,7 +571,8 @@ def create_spec(wav_path: str,
     else:
         # wavfile_to_examples return spectrograms of shape (96, 64) grouped into a np.ndarray of shape (*, 96, 64)
         # * depends on the length of the audio file
-        slots = wavfile_to_examples(wav_path, return_tensor=False)
+        #slots = wavfile_to_examples(wav_path, return_tensor=False)
+        slots = waveform_to_examples(audio_array, sr, return_tensor=False)
         reshaped = np.zeros((4, slots.shape[1], slots.shape[2]))
         # reshaped.fill(-10)
         reshaped[:slots.shape[0]] = slots
@@ -534,7 +583,7 @@ def create_spec(wav_path: str,
 
 
 def plot_spec(spec: np.ndarray, sr: int) -> None:
-    librosa.display.specshow(spec, x_axis='time', y_axis='mel', sr=sr)
+    librosa.display.specshow(spec, x_axis='time', y_axis='mel')
 
     plt.colorbar()
     plt.show()
