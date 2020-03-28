@@ -24,7 +24,7 @@ TARGET_NAMES = ['air_conditioner', 'car_horn', 'children_playing', 'dog_bark', '
 S_RESNET_SHAPE = (224, 224)
 S_VGGISH_SHAPE = (96, 64)
 
-T = 4  # number of bottleneck features
+T = 10  # number of bottleneck features
 M_RESNET = 2048  # size of a bottleneck feature (resnet)
 M_VGGISH = 128 # size of a bottleneck feature (vggish)
 M_VGGISH_JB = 512 * 6 * 4
