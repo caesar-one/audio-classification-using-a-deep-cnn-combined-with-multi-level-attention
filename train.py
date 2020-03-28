@@ -18,6 +18,7 @@ import numpy as np
 import torch
 from sklearn.metrics import classification_report
 from torch.utils.data import Dataset
+import os
 
 import matplotlib.pyplot as plt
 from glob import glob
@@ -59,8 +60,8 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
         assert save_model_path is not None
         if save_model_path in glob(save_model_path):
             _model, _criterion, _optimizer, _epoch, _loss, _accuracy, _history = _resume_from_checkpoint(save_model_path)
-            if finetune:
-                model.set_requires_grad(_model, True)
+            #if finetune:
+            #    model.set_requires_grad(_model, True)
             clf = _model
             criterion = _criterion
             optimizer = _optimizer
@@ -70,6 +71,9 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
             val_acc_history = _history
         else:
             raise Exception("No such model file in the specified path.")
+
+    if finetune:
+        model.set_requires_grad(clf, True)
 
     best_model_wts = copy.deepcopy(clf.state_dict())
     test_dataloader = dataloaders.pop('test', None)
@@ -122,14 +126,15 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
             print('{} Loss: {:.4f}, Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
             # deep copy the model
+            if phase == 'val':
+                val_acc_history.append(epoch_acc)
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(clf.state_dict())
                 best_epoch = epoch
                 if save_model_path:
                     _save_checkpoint(clf, criterion, optimizer, epoch, epoch_loss, best_acc, val_acc_history, save_model_path)
-            if phase == 'val':
-                val_acc_history.append(epoch_acc)
+                    print("Model checkpoint saved successfully in the given path!")
             if patience is not None:
                 if epoch - best_epoch >= patience:
                     break
@@ -143,6 +148,7 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
     clf.load_state_dict(best_model_wts)
 
     test_acc = test_model(clf, test_dataloader, criterion, optimizer)
+    save_model(clf, os.path.splitext(save_model_path)[0] + ("_final_finetuned" if finetune else "_final") + os.path.splitext(save_model_path)[1])
 
     return clf, val_acc_history, test_acc
 
@@ -164,7 +170,7 @@ def test_model(model, dataloader, criterion, optimizer):
 
     # Iterate over data.f
     metric_pred, metric_true = [], []
-    for inputs, labels in dataloader:
+    for inputs, labels in tqdm(dataloader,"Testing"):
         inputs = inputs.to(device).float()
         labels = labels.to(device).long()
 
