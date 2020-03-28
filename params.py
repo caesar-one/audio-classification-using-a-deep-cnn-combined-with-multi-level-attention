@@ -38,7 +38,7 @@ K = 10  # number of classes
 ##################
 
 # Batch size for training
-BATCH_SIZE = 64
+BATCH_SIZE = 8
 
 # Number of epochs to train for
 NUM_EPOCHS = 25
