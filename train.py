@@ -50,7 +50,7 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
 
     val_acc_history = []
 
-    best_model_wts = copy.deepcopy(clf.state_dict())
+    #best_model_wts = copy.deepcopy(clf.state_dict())
     best_acc = 0.0
     best_epoch = 0
     epoch = 0
@@ -68,11 +68,13 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
             best_epoch = _epoch
             best_acc = _accuracy
             val_acc_history = _history
-            best_model_wts = copy.deepcopy(clf.state_dict())
         else:
             raise Exception("No such model file in the specified path.")
 
+    best_model_wts = copy.deepcopy(clf.state_dict())
     test_dataloader = dataloaders.pop('test', None)
+
+    clf = clf.to(device)
 
     for epoch in range(epoch, num_epochs):
         print('Epoch {}/{}'.format(epoch + 1, num_epochs))
@@ -283,7 +285,7 @@ if __name__ == "__main__":
     model_ft = model.Ensemble(input_conf, cnn_conf, model_conf, device)
 
     # Send the model to GPU
-    model_ft = model_ft.to(device)
+    #model_ft = model_ft.to(device)
 
     # Observe that all parameters are being optimized
     optimizer_ft = optim.Adam(trainable_params(model_ft, feature_extract=FEATURE_EXTRACT), lr=LR)
