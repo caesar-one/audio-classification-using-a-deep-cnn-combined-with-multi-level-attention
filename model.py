@@ -119,7 +119,7 @@ class EmbeddedMapping(nn.Module):
     def forward(self, x):
         x = self.norm0(x)
         for i in range(self.n_fc):
-            x = self.dropouts[i](F.relu(self.norms[i](self.fc[i](x))), p=DR)
+            x = self.dropouts[i](F.relu(self.norms[i](self.fc[i](x))))
         # Output emb has shape (batch_size, T, H)
         return x
 
