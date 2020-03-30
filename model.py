@@ -111,6 +111,7 @@ class EmbeddedMapping(nn.Module):
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
 
+        self.dropouts = nn.ModuleList([nn.Dropout(p=DR) for _ in range(n_fc)])
         self.norms = nn.ModuleList([nn.BatchNorm1d(T) for _ in range(n_fc)])
 
 
@@ -119,7 +120,7 @@ class EmbeddedMapping(nn.Module):
     def forward(self, x):
         x = self.norm0(x)
         for i in range(self.n_fc):
-            x = F.dropout(F.relu(self.norms[i](self.fc[i](x))), p=DR)
+            x = self.dropouts[i](F.relu(self.norms[i](self.fc[i](x))), p=DR)
         # Output emb has shape (batch_size, T, H)
         return x
 
