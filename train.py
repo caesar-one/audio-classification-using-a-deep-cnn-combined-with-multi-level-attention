@@ -148,7 +148,11 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
     clf.load_state_dict(best_model_wts)
 
     test_acc = test_model(clf, test_dataloader, criterion, optimizer)
-    if not save_model_path: save_model_path = "best_weights.h5"
+    if not save_model_path:
+        if IN_COLAB:
+            save_model_path = "/content/drive/My Drive/Audio-classification-using-multiple-attention-mechanism/best_weights.h5"
+        else:
+            save_model_path = "best_weights.h5"
     save_model(clf, os.path.splitext(save_model_path)[0] + ("_final_finetuned" if finetune else "_final") + os.path.splitext(save_model_path)[1])
 
     return clf, val_acc_history, test_acc
