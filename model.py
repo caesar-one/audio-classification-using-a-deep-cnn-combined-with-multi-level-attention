@@ -41,9 +41,9 @@ class CNN(nn.Module):
                                                      padding=3,
                                                      bias=False)
             if just_bottlenecks:
-                modules = list(self.cnn_model.children())[:-1]  # delete the last fc layer.
+                modules = list(self.cnn_model.children())[:-1]  # delete last fc layer.
 
-                modules.append(CnnFlatten(cnn_type))  # TODO Rivedere questa istruzione (e solo questa!)
+                modules.append(CnnFlatten(cnn_type))
                 self.cnn_model = nn.Sequential(*modules)
 
             else:
@@ -64,7 +64,7 @@ class CNN(nn.Module):
                 modules = []
                 modules.append(list(self.cnn_model.children())[0])  # just use the first group of layers.
                 print()
-                modules.append(CnnFlatten(cnn_type))  # TODO Rivedere questa istruzione (e solo questa!)
+                modules.append(CnnFlatten(cnn_type))
                 self.cnn_model = nn.Sequential(*modules)
 
         else:
@@ -83,7 +83,7 @@ class CnnFlatten(nn.Module):
 
     def forward(self, x):
         if self.cnn_type == "resnet":
-            x = torch.flatten(x, 1)  # TODO check second parameter (it should be correct considering batches)
+            x = torch.flatten(x, 1)
         elif self.cnn_type == "vggish":
             #x = self.features(x)
             # Transpose the output from features to
@@ -107,7 +107,6 @@ class EmbeddedMapping(nn.Module):
 
         if is_first:
             self.fc = nn.ModuleList([nn.Linear(emb_input_size, H)] + [nn.Linear(H, H) for _ in range(n_fc - 1)])
-            #raise Exception("dis leier is faching vrong") #TODO edit faching vrong leier
         else:
             self.fc = nn.ModuleList([nn.Linear(H, H) for _ in range(n_fc)])
 

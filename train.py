@@ -135,10 +135,10 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
                 if save_model_path:
                     _save_checkpoint(clf, criterion, optimizer, epoch, epoch_loss, best_acc, val_acc_history, save_model_path)
                     print("Model checkpoint saved successfully in the given path!")
-            if patience is not None:
-                if epoch - best_epoch >= patience:
-                    break
         print()
+        if patience is not None:
+            if epoch - best_epoch >= patience:
+                break
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -148,6 +148,7 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
     clf.load_state_dict(best_model_wts)
 
     test_acc = test_model(clf, test_dataloader, criterion, optimizer)
+    if not save_model_path: save_model_path = "best_weights.h5"
     save_model(clf, os.path.splitext(save_model_path)[0] + ("_final_finetuned" if finetune else "_final") + os.path.splitext(save_model_path)[1])
 
     return clf, val_acc_history, test_acc
