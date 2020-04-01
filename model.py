@@ -19,7 +19,7 @@ def set_requires_grad(model, value):
 
 class CNN(nn.Module):
     def __init__(self,
-                 cnn_type="vggish", # the pretrained model to use. It can either "resnet" or "vggish" (default)
+                 cnn_type="vggish",  # the pretrained model to use. It can either "resnet" or "vggish" (default)
                  num_classes=10,  # number of output classes (makes sense if combined with just_bottlenecks=False)
                  use_pretrained=True,  # Uses a pretrained version of resnet50
                  just_bottlenecks=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
@@ -55,7 +55,8 @@ class CNN(nn.Module):
             model_urls = {
                 "vggish": "https://github.com/harritaylor/torchvggish/releases/download/v0.1/vggish-10086976.pth"}
 
-            self.cnn_model = VGGish(urls=model_urls, pretrained=use_pretrained, preprocess=False, postprocess=False, progress=True)
+            self.cnn_model = VGGish(urls=model_urls, pretrained=use_pretrained, preprocess=False, postprocess=False,
+                                    progress=True)
 
             if not cnn_trainable:
                 set_requires_grad(self.cnn_model, False)
@@ -72,20 +73,20 @@ class CNN(nn.Module):
 
     def forward(self, x):
         x = self.cnn_model(x)
-        #return torch.flatten(x, 1)
+        # return torch.flatten(x, 1)
         return x
 
 
 class CnnFlatten(nn.Module):
     def __init__(self, cnn_type):
-        super(CnnFlatten,self).__init__()
+        super(CnnFlatten, self).__init__()
         self.cnn_type = cnn_type
 
     def forward(self, x):
         if self.cnn_type == "resnet":
             x = torch.flatten(x, 1)
         elif self.cnn_type == "vggish":
-            #x = self.features(x)
+            # x = self.features(x)
             # Transpose the output from features to
             # remain compatible with vggish embeddings
             x = torch.transpose(x, 1, 3)
@@ -101,6 +102,11 @@ class CnnFlatten(nn.Module):
 class EmbeddedMapping(nn.Module):
 
     def __init__(self, n_fc, is_first, emb_input_size):
+        """
+        :param n_fc: number of fully connected
+        :param is_first:
+        :param emb_input_size:
+        """
         super(EmbeddedMapping, self).__init__()
         self.n_fc = n_fc
         self.norm0 = nn.BatchNorm1d(T)
@@ -112,7 +118,6 @@ class EmbeddedMapping(nn.Module):
 
         self.dropouts = nn.ModuleList([nn.Dropout(p=DR) for _ in range(n_fc)])
         self.norms = nn.ModuleList([nn.BatchNorm1d(T) for _ in range(n_fc)])
-
 
     # Input x has shape (batch_size, T, M) if is_first=True
     # otherwise x has shape (batch_size, T, H)
@@ -174,18 +179,23 @@ class MultiLevelAttention(nn.Module):
 class Input(nn.Module):
 
     def __init__(self, input_conf, cnn_type, device):
+        """
+        This class is just for preprocessing the CNN input and it actually does not represent any module of the network.
+            For an explanation of the parameters, see the class Ensemble.
+        """
         super(Input, self).__init__()
         self.conf = input_conf
         self.device = device
         self.cnn_type = cnn_type
 
     def forward(self, x):
+        # Preprocess the input, based on
         if self.cnn_type == "resnet":
             if self.conf == "repeat":
                 x = torch.cat([x, x, x], dim=2)
             elif self.conf == "single":
                 x = torch.cat([x, torch.zeros(x.shape, device=self.device), torch.zeros(x.shape, device=self.device)],
-                                  dim=2)
+                              dim=2)
             else:
                 raise Exception("Invalid input type")
 
@@ -205,6 +215,28 @@ class Ensemble(nn.Module):
 
     def __init__(self, input_conf: str, cnn_conf: Dict[str, Union[str, int]], model_conf: List[int],
                  device):
+        """
+        This class models the whole network, which is made up of a CNN module followed by a multi-level attention (MLA)
+            module. The CNN performs the feature extraction, then the MLA makes the classification.
+            The MLA is composed of two parts: an embedding module and an attention one. The embedding module is
+            responsible for extracting the embeddings from the features, while the attention module performs the
+            classification.
+            
+        :param input_conf: the configuration of the channels of the CNN input.
+        :param cnn_conf: the configuration parameter of the CNN. It's a dict composed by the following key-value pairs:
+            'cnn_type' (str):            type of CNN, can be 'resnet' or 'vggish'
+            'num_classes' (int):         number of output classes (not used)
+            'use_pretrained' (bool):     if True, use a pretrained model
+            'just_bottleneck' (bool):    if True, the CNN extracts just the bottleneck feature, else ???
+            'cnn_trainable' (bool):      if True, the CNN is trainable, otherwise is not (overrides the following param)
+            'first_cnn_layer_trainable': if True, the first layer of the CNN is trainable, otherwise is not.
+            'in_channels' (int):         number of channels of the input
+        :param model_conf: the configuration of the MLA
+            e.g. [2] means a MLA (actually a single level attention!) of type 2A
+                 [2, 1] means a MLA of type 2A-1A, etc.
+        :param device: self-explanatory
+        """
+        
         super(Ensemble, self).__init__()
         self.cnn_type = cnn_conf["cnn_type"]
         self.just_bottlenecks = cnn_conf["just_bottlenecks"]
