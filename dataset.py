@@ -19,14 +19,6 @@ import librosa
 import librosa.display
 import soundfile as sf
 
-from pyrqa.computation import RPComputation
-from pyrqa.image_generator import ImageGenerator
-from pyrqa.analysis_type import Cross
-from pyrqa.time_series import TimeSeries
-from pyrqa.settings import Settings
-from pyrqa.neighbourhood import FixedRadius
-from pyrqa.metric import EuclideanMetric
-
 from glob import glob
 import pickle
 import matplotlib.pyplot as plt
@@ -314,7 +306,7 @@ def load_hdf5(save: bool = True,
               use_librosa: bool = False,
               overlap: bool = True,
               debug: bool = False,
-              features: tuple = ("spectrogram",) # "mfcc", "crp"),  # TODO implement this
+              features: tuple = ("spectrogram",) # "mfcc"),  # TODO implement this
               ) -> str:
     # if save_filename.split(".")[-1] in ["hdf5","h5"]:
     audio_data = h5py.File(path + save_filename, "w-")
@@ -383,7 +375,6 @@ def load_hdf5(save: bool = True,
                 if use_librosa:
                     # Load the audio clip stored at *wav_path* in an audio array
                     audio_array, _ = librosa.load(wav_path, sr=sr)
-                    downsampled_audio_array, _ = librosa.load(wav_path, sr=sr//10)
                     # Make sure that all audio arrays are of the same length *samples_num*
                     # (cut if larger, zero-fill if smaller)
                     audio_array = audio_array[:samples_num]
@@ -395,7 +386,6 @@ def load_hdf5(save: bool = True,
                     audio_array = audio_array / 32768.0  # Convert to [-1.0, +1.0]
                 spec = create_spec(audio_array, cnn_type, sr, samples_num, x_size, y_size, use_librosa, overlap)
                 mfcc = create_mfcc(S=spec, sr=sr, y_size=y_size)
-                crp = create_crp(downsampled_audio_array)
             except RuntimeError:
                 print(f"{wav_path} was not read (Runtime error)")
                 continue
@@ -509,27 +499,6 @@ def create_mfcc(S: np.ndarray,
     """
 
     return librosa.feature.mfcc(S=S, sr=sr, n_mfcc=y_size)
-
-def create_crp(audio_array):
-    #data_points_x = [0.9, 0.1, 0.2, 0.3, 0.5, 1.7, 0.4, 0.8, 1.5]
-    #time_series_x = TimeSeries(data_points_x,
-    #                           embedding_dimension=2,
-    #                           time_delay=1)
-    #data_points_y = [0.3, 1.3, 0.6, 0.2, 1.1, 1.9, 1.3, 0.4, 0.7, 0.9, 1.6]
-    #time_series_y = TimeSeries(data_points_y,
-    #                           embedding_dimension=2,
-    #                           time_delay=2)
-    #time_series = (time_series_x,
-    #               time_series_y)
-    time_series = TimeSeries(audio_array, embedding_dimension=2, time_delay=1)
-    settings = Settings(time_series,
-                        analysis_type=Cross,
-                        neighbourhood=FixedRadius(0.73),
-                        similarity_measure=EuclideanMetric,
-                        theiler_corrector=0)
-    computation = RPComputation.create(settings)
-    result = computation.run()
-    ImageGenerator.save_recurrence_plot(result.recurrence_matrix_reverse, 'cross_recurrence_plot.png')
 
 def create_spec(audio_array: np.ndarray,
                 cnn_type: str,
