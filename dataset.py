@@ -147,11 +147,12 @@ def load_hdf5(path: str = "",
               features: tuple = ("spectrogram",)  # "mfcc", "crp"),
               ) -> str:
     """
-    Loads data and store it in the specified path.
+    Loads the audio clips and generates training, testing and evaluating data from them.
+    Each set of data is a np.ndarray shape (# of clips, T, # of channels, y_size, x_size). See later for details.
 
-    :param path: absolute path of the data
-    :param save_filename: the name of the file which will contain data
-    :param cnn_type: "resnet" or "vggish", depending on which net we are considering
+    :param path: absolute path of the main folder of the audio clips
+    :param save_filename: the name of the file which will contain the generated data
+    :param cnn_type: "resnet" or "vggish", depending on which net we are using as feature extractor
     :param use_librosa: If True, use librosa to generate the spectrogram, otherwise use torchvggish
     :param overlap: If True, the split has *num_frames* overlapping frame. Each frame has a fixed length of 1 second.
         Otherwise, the split has T contiguous slots.
@@ -159,6 +160,7 @@ def load_hdf5(path: str = "",
     :param debug: If True, load just a small part of the data in order to debug
     :param features: the features to consider when creating data (now we have only spectrogram, but we could add also
         features like MFCC or CRP, etc.
+    :return: the path at which is stored the dataset.
     """
 
     audio_data = h5py.File(path + save_filename, "w-")
