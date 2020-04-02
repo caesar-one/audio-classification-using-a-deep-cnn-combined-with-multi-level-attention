@@ -33,6 +33,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class H5Loader(Dataset):
 
     def __init__(self, X_desc, y_desc):
+        """
+        A PyTorch iterable dataset, suitable for both HDF5 file descriptors or NumPy arrays.
+
+        :param X_desc: HDF5 file descriptor or NumPy array for the features
+        :param y_desc: HDF5 file descriptor or NumPy array for the labels
+        :return: An iterator that can be used with the torch.utils.data.DataLoader class.
+        """
         self.X_desc = X_desc
         self.y_desc = y_desc
 
@@ -47,6 +54,22 @@ class H5Loader(Dataset):
 #       be saved. Otherwise it will be saved in the specified path.
 def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
                 patience=10, save_model_path=None, resume=False, finetune=False):
+    """
+    Trains a PyTorch *model* for *num_epochs* epochs using *criterion* loss function and *optimizer* optimizer.
+        Patience, early stopping and automatic checkpointing are also possible by setting the respective vars.
+
+    :param clf: an instantiated PyTorch model
+    :param dataloaders: a dict of DataLoaders with keys corresponding to the set name, e.g. "train" or "val"
+    :param criterion: a PyTorch criterion instance
+    :param optimizer: a PyTorch optimizer instance
+    :param num_epochs: the number of epochs to train the model on
+    :param patience: can be None or integer: stops training if "val" set accuracy does not improve for *patience* epochs
+    :param save_model_path: can be None or str, saves a checkpoint in the specified path at each "val" acc improvement
+    :param resume: if True, loads a pretrained model from *save_model_path* path
+    :param finetune: if True, makes every *clf* parameter trainable
+    :return: a tuple containing the trained model with best "val" acc weights, the "val" acc history and the test acc
+    """
+
     since = time.time()
 
     val_acc_history = []
@@ -159,6 +182,15 @@ def train_model(clf, dataloaders, criterion, optimizer, num_epochs=25,
 
 
 def test_model(model, dataloader, criterion, optimizer):
+    """
+    Performs a test on a PyTorch *model* using the *dataloader*
+
+    :param model: the model to test
+    :param dataloader: an instance of torch.utils.data.DataLoader
+    :param criterion: the loss function
+    :param optimizer: the optimizer (in reality, this is not needed)
+    :return: a tuple containing the test acc and a dict containing a summary of the test results
+    """
     if dataloader is None:
         return None
 
@@ -240,12 +272,14 @@ def load_model(model_args, path):
     m.load_state_dict(torch.load(path, map_location=device))
     return m
 
-    # Gather the parameters to be optimized/updated in this run. If we are
-    #  finetuning we will be updating all parameters. However, if we are
-    #  doing feature extract method, we will only update the parameters
-    #  that we have just initialized, i.e. the parameters with requires_grad
-    #  is True.
 def trainable_params(model, feature_extract):
+    """
+    Prints and returns all the trainable parameters in model.
+
+    :param model: the model instance
+    :param feature_extract: if True, only params with *requires_grad* will be returned.
+    :return: a list containing the model's trainable params.
+    """
     params_to_update = model.parameters()
     print("Params to learn:")
     if feature_extract:

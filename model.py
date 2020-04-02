@@ -105,13 +105,25 @@ class Input(nn.Module):
 
 class CNN(nn.Module):
     def __init__(self,
-                 cnn_type="vggish",  # the pretrained model to use. It can either "resnet" or "vggish" (default)
-                 num_classes=10,  # number of output classes (makes sense if combined with just_bottlenecks=False)
-                 use_pretrained=True,  # Uses a pretrained version of resnet50
-                 just_bottlenecks=False,  # if =True the FC part is removed, so that the model returns bottlenecks.
-                 cnn_trainable=False,  # if =True CNN part is trainable. Otherwise the gradient will NOT be calculated
-                 first_cnn_layer_trainable=False,  # Sets the first CNN layer trainable, to optimize for the dataset
-                 in_channels=3):  # the the number of input channels is reshaped
+                 cnn_type="vggish",
+                 num_classes=10,
+                 use_pretrained=True,
+                 just_bottlenecks=False,
+                 cnn_trainable=False,
+                 first_cnn_layer_trainable=False,
+                 in_channels=3):
+        """
+        Creates an instance of the CNN part used as features extractor. It can either load a pretrained version of
+        ResNet50 or VGGish
+
+        :param cnn_type: str, can be either "resnet" or "vggish"
+        :param num_classes: the number of classes, i.e. the dimension of the output of the last layer
+        :param use_pretrained: if True, downloads a pre-trained version of the corresponding architecture
+        :param just_bottlenecks: if True the last fully connected part is removed, so that the model returns bottlenecks
+        :param cnn_trainable: if True, the whole CNN part is trainable. Otherwise the gradient will NOT be calculated
+        :param first_cnn_layer_trainable: if True, sets the first CNN layer trainable, to optimize for the dataset
+        :param in_channels: the number of desired input channels for the network (to reshape the original one).
+        """
         super(CNN, self).__init__()
         if cnn_type == "resnet":
             self.cnn_model = resnet50(pretrained=use_pretrained)
@@ -165,6 +177,9 @@ class CNN(nn.Module):
 
 class CnnFlatten(nn.Module):
     def __init__(self, cnn_type):
+        """
+        This class is only used to reshape the output of the CNN part, depending on the architecture used.
+        """
         super(CnnFlatten, self).__init__()
         self.cnn_type = cnn_type
 
@@ -172,9 +187,6 @@ class CnnFlatten(nn.Module):
         if self.cnn_type == "resnet":
             x = torch.flatten(x, 1)
         elif self.cnn_type == "vggish":
-            # x = self.features(x)
-            # Transpose the output from features to
-            # remain compatible with vggish embeddings
             x = torch.transpose(x, 1, 3)
             x = torch.transpose(x, 1, 2)
             x = x.contiguous()
@@ -258,5 +270,11 @@ class MultiLevelAttention(nn.Module):
 
 
 def set_requires_grad(model, value):
+    """
+    Sets the *requires_grad* attribute to *value* for all the parameters in the *model*.
+
+    :param model: A PyTorch model
+    :param value: Truth value to set the model's parameters to.
+    """
     for param in model.parameters():
         param.requires_grad = value
