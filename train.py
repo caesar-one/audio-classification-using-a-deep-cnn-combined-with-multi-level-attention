@@ -11,15 +11,12 @@ else:
 
 import time
 import copy
-from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
 import torch
-from sklearn.metrics import classification_report
-from torch.utils.data import Dataset
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from torch.utils.data import Dataset, DataLoader
 import os
-
 import matplotlib.pyplot as plt
 from glob import glob
 
@@ -244,6 +241,16 @@ def test_model(model, dataloader, criterion, optimizer):
     metric_pred = torch.cat(metric_pred, 0).cpu()
 
     print(classification_report(metric_true,metric_pred,target_names=TARGET_NAMES,digits=3))
+
+    cm = confusion_matrix(metric_true, metric_pred)
+    for i in range(cm.shape[0]):
+        _sum = sum(cm[i])
+        for j in range(cm.shape[1]):
+            cm[i, j] = cm[i, j] * 100 / _sum
+
+    disp = ConfusionMatrixDisplay(cm, display_labels=TARGET_NAMES)
+    disp.plot(xticks_rotation='vertical', cmap='Blues')
+
     results = classification_report(metric_true,metric_pred,target_names=TARGET_NAMES, output_dict=True, digits=5)
     return test_acc, results
 
@@ -296,86 +303,99 @@ def trainable_params(model, feature_extract):
 
 
 if __name__ == "__main__":
+    import h5py
 
-    X_train, X_val, X_test, y_train, y_val, y_test = dataset.load()
+    def range_aux(start, end, step):
+        for i in tqdm(range(start, end, step)):
+            yield (i, i + step) if i + step <= end else (i, end)
 
-    '''
-    dataloaders_dict = {
-        "train": DataLoader(list(zip(X_train, y_train)), batch_size=BATCH_SIZE, shuffle=True),
-        "val": DataLoader(list(zip(X_val, y_val)), batch_size=BATCH_SIZE, shuffle=False),
-        "test": DataLoader(list(zip(X_test, y_test)), batch_size=BATCH_SIZE, shuffle=False)
-    }
-    '''
+    data_path = '/Volumes/GoogleDrive/Il mio Drive/Audio-classification-using-multiple-attention-mechanism/'
 
-    dataloaders_dict = {
-        "train": DataLoader(H5Loader(X_train, y_train), batch_size=BATCH_SIZE, shuffle=True, num_workers=4),
-        "val": DataLoader(H5Loader(X_val, y_val), batch_size=BATCH_SIZE, shuffle=False, num_workers=4),
-        "test": DataLoader(H5Loader(X_test, y_test), batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
-    }
+    overlap = True
+    use_librosa = True
+    cnn_type = "resnet"
+
+    mnemonic = f'{cnn_type}{"" if use_librosa else "_native"}_{T}{"_s" if overlap else ""}'
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    feature_extract = True
+    # lr = 0.001
 
     input_conf = "repeat"
 
-    model_conf = [2, 2]
+    model_conf = [2, 1]
 
     cnn_conf = {
-        "cnn_type": "vggish",
-        "num_classes": 10,
+        "cnn_type": cnn_type,
+        "num_classes": 128,
         "use_pretrained": True,
-        "just_bottleneck":False,
+        "just_bottlenecks": True,
         "cnn_trainable": False,
         "first_cnn_layer_trainable": False,
-        "in_channels": 3
-    }
+        "in_channels": 3}
 
+    # save_model_path = f"{data_path}model_{mnemonic}.pkl"
     model_ft = model.Ensemble(input_conf, cnn_conf, model_conf, device)
 
-    # Send the model to GPU
-    #model_ft = model_ft.to(device)
+    import gc
+    import h5py
 
-    # Observe that all parameters are being optimized
-    optimizer_ft = optim.Adam(trainable_params(model_ft, feature_extract=FEATURE_EXTRACT), lr=LR)
+    load_in_RAM = False
 
-    # Setup the loss fxn
+    #audio_data = h5py.File("audio_data_c.h5", "r")
+    audio_data = h5py.File(data_path + "audio_data_3.h5", "r")
+    group = audio_data["resnet_10_s"]
+    #X_train = group["X_train"]
+    #X_val = group["X_val"]
+    X_test = group["X_test"]
+    #y_train = group["y_train"]
+    #y_val = group["y_val"]
+    y_test = group["y_test"]
+
+    if load_in_RAM:
+        gc.collect()
+        #X_train = X_train[:]
+        #X_val = X_val[:]
+        X_test = X_test[:]
+        #y_train = y_train[:]
+        #y_val = y_val[:]
+        y_test = y_test[:]
+
+        audio_data.close()
+
+    batch_size = 64
+
+    optimizer = optim.Adam(trainable_params(model_ft, True), lr=0.001)
+    optimizer_ft = optim.Adam(trainable_params(model_ft, True), lr=0.0001)
+
     criterion = nn.CrossEntropyLoss()
 
-    # Train and evaluate
-    model_ft, hist, test_acc = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=NUM_EPOCHS)
+    print(sum(p.numel() for p in model_ft.parameters() if p.requires_grad))
 
-    cnn_conf_scratch = {
-        "cnn_type": "vggish",
-        "num_classes": 10,
-        "use_pretrained": False,
-        "just_bottleneck":False,
-        "cnn_trainable": False,
-        "first_cnn_layer_trainable": False,
-        "in_channels": 3
+    print('Loading model...')
+    # Load model
+    model_ft = load_model({
+        'input_conf': input_conf,
+        'cnn_conf': cnn_conf,
+        'model_conf': model_conf,
+        'device': device},
+        data_path + mnemonic + '_2A1A/wts_691.h5')
+    print('Model loaded.')
+
+    #model_ft.to(device)
+
+    # Train and evaluate
+    # model_ft, hist, test_acc = train.train_model(model_ft, dataloaders_dict, criterion, optimizer, resume=False,
+    #                                              num_epochs=25, finetune=False)
+
+    #torch.cuda.empty_cache()
+    batch_size = 8
+
+    dataloaders_dict = {
+        #"train": DataLoader(H5Loader(X_train, y_train), batch_size=batch_size, shuffle=True),
+        #"val": DataLoader(H5Loader(X_val, y_val), batch_size=batch_size, shuffle=False),
+        "test": DataLoader(H5Loader(X_test, y_test), batch_size=batch_size, shuffle=False)
     }
 
-    # Initialize the non-pretrained version of the model used for this run
-    scratch_model = model.Ensemble(input_conf, cnn_conf_scratch, model_conf, device)
-    scratch_model = scratch_model.to(device)
 
-    scratch_optimizer = optim.Adam(scratch_model.parameters(), lr=LR)
-    scratch_criterion = nn.CrossEntropyLoss()
-    _, scratch_hist, _ = train_model(scratch_model, dataloaders_dict, scratch_criterion, scratch_optimizer,
-                                     num_epochs=NUM_EPOCHS)
 
-    # Plot the training curves of validation accuracy vs. number
-    #  of training epochs for the transfer learning method and
-    #  the model trained from scratch
-    # ohist = []
-    # shist = []
-
-    ohist = [h.cpu().numpy() for h in hist]
-    shist = [h.cpu().numpy() for h in scratch_hist]
-
-    plt.title("Validation Accuracy vs. Number of Training Epochs")
-    plt.xlabel("Training Epochs")
-    plt.ylabel("Validation Accuracy")
-    plt.plot(range(1, len(ohist) + 1), ohist, label="Pretrained")
-    plt.plot(range(1, len(shist) + 1), shist, label="Scratch")
-    plt.axhline(y=test_acc, linestyle='-', label="Test Accuracy")
-    plt.ylim((0, 1.))
-    plt.xticks(np.arange(1, NUM_EPOCHS + 1, 1.0))
-    plt.legend()
-    plt.show()
