@@ -249,7 +249,7 @@ def test_model(model, dataloader, criterion, optimizer):
         for j in range(cm.shape[1]):
             cm[i, j] = cm[i, j] * 100 / _sum
 
-    disp = ConfusionMatrixDisplay(cm, display_labels=TARGET_NAMES)
+    disp = ConfusionMatrixDisplay(cm, display_labels=TARGET_NAMES, values_format='.0f'))
     disp.plot(xticks_rotation='vertical', cmap='Blues')
 
     results = classification_report(metric_true,metric_pred,target_names=TARGET_NAMES, output_dict=True, digits=5)
