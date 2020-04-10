@@ -242,7 +242,7 @@ def test_model(model, dataloader, criterion, optimizer):
 
     print(classification_report(metric_true,metric_pred,target_names=TARGET_NAMES,digits=3))
 
-    cm = confusion_matrix(metric_true, metric_pred)
+    cm = confusion_matrix(metric_true, metric_pred).astype(np.float32)
     for i in range(cm.shape[0]):
         _sum = sum(cm[i])
         for j in range(cm.shape[1]):
