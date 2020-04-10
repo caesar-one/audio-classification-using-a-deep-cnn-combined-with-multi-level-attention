@@ -19,6 +19,7 @@ from torch.utils.data import Dataset, DataLoader
 import os
 import matplotlib.pyplot as plt
 from glob import glob
+import numpy as np
 
 import dataset
 import model
